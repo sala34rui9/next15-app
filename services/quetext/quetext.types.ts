@@ -54,6 +54,50 @@ export interface Quetext402Data {
   needed_words: number;
 }
 
+/**
+ * Raw report data returned by GET /v2/report/{id}.
+ * The Quetext OpenAPI spec declares `additionalProperties: true` without
+ * documenting exact field names, so we handle multiple possible shapes.
+ * Fields are snake_case as returned by the API.
+ */
+export interface QuetextRawReportData {
+  id?: string;
+  score?: number;             // Plagiarism percentage (0–100)
+  word_count?: number;        // Total words analyzed
+  words?: number;             // Alternate field name for word count
+  title?: string;
+  created_at?: string;
+  // Sources / matches — API may use different field names
+  sources?: QuetextRawSource[];
+  matches?: QuetextRawSource[];
+  results?: QuetextRawSource[];
+  // Allow any extra fields we haven't seen yet
+  [key: string]: unknown;
+}
+
+/**
+ * A single matched source from the Quetext report.
+ * Handles multiple possible field name patterns.
+ */
+export interface QuetextRawSource {
+  url?: string;
+  source_url?: string;
+  link?: string;
+  title?: string;
+  source_name?: string;
+  name?: string;
+  similarity?: number;
+  similarity_score?: number;
+  score?: number;
+  matched_text?: string;
+  matchedText?: string;
+  text?: string;
+  snippet?: string;
+  words?: number;
+  word_count?: number;
+  [key: string]: unknown;
+}
+
 export class QuetextApiError extends Error {
   public statusCode?: number;
   public responseBody?: unknown;

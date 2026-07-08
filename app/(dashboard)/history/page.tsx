@@ -83,11 +83,13 @@ export default function HistoryPage() {
         if (res.ok) {
           const data = await res.json();
           // API returns an array of reports: { id, created_at, score }
+          // `score` is the plagiarism percentage; we display originality = 100 - score
           if (Array.isArray(data)) {
-            const mapped: HistoryRecord[] = data.map(item => ({
+            const mapped: HistoryRecord[] = data.map((item: any) => ({
               jobId: item.id,
               completedAt: item.created_at,
-              originalityScore: item.score
+              originalityScore: item.score != null ? Math.max(0, Math.min(100, 100 - item.score)) : undefined,
+              wordCount: item.word_count ?? item.words,
             }));
             setHistory(mapped);
           }

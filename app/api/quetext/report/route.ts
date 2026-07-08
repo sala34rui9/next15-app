@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     }
 
     const reportResponse = await client.fetchReport(jobId);
+    logger.info(`Report route returning for ${jobId}: originality=${reportResponse.originalityScore}%, words=${reportResponse.wordCount}, matches=${reportResponse.matches?.length ?? 0}`);
     return NextResponse.json(reportResponse);
   } catch (error) {
     if (error instanceof QuetextApiError) {

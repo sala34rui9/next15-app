@@ -5,7 +5,10 @@ import {
   SubmitDocumentResponse,
   CheckStatusResponse,
   FetchReportResponse,
+  MatchDetail,
   QuetextApiError,
+  QuetextRawReportData,
+  QuetextRawSource,
 } from "./quetext.types";
 
 export class QuetextService {
@@ -143,10 +146,74 @@ export class QuetextService {
 
   /**
    * Fetches the finalized originality report for a completed job.
+   * Normalizes the raw Quetext V2 API response (snake_case, undocumented
+   * field names) into our typed FetchReportResponse.
    */
   public async fetchReport(jobId: string): Promise<FetchReportResponse> {
     logger.info(`Fetching report for job: ${jobId}`);
-    return this.fetchApi<FetchReportResponse>(`/v2/report/${jobId}`);
+    const raw = await this.fetchApi<QuetextRawReportData>(`/v2/report/${jobId}`);
+
+    // Log the full raw response so we can inspect the actual API shape
+    logger.info(`Raw Quetext report response for ${jobId}: ${JSON.stringify(raw)}`);
+
+    return this.normalizeReport(jobId, raw);
+  }
+
+  /**
+   * Normalizes the raw Quetext V2 report data into our FetchReportResponse.
+   * Handles multiple possible field name patterns since the API spec uses
+   * `additionalProperties: true` without documenting exact field names.
+   */
+  private normalizeReport(jobId: string, raw: QuetextRawReportData): FetchReportResponse {
+    // --- Plagiarism score → Originality score ---
+    // The Quetext API returns a plagiarism `score` (percentage of matched text).
+    // The list reports endpoint confirms the field name is `score`.
+    // Our UI shows "originality" which is the inverse: 100 - plagiarismScore.
+    const plagiarismScore = raw.score ?? 0;
+    const originalityScore = Math.max(0, Math.min(100, 100 - plagiarismScore));
+
+    // --- Word count ---
+    const wordCount = raw.word_count ?? raw.words ?? 0;
+
+    // --- Matches / Sources ---
+    // The API may use "sources", "matches", or "results" as the array key
+    const rawSources: QuetextRawSource[] =
+      raw.sources ?? raw.matches ?? raw.results ?? [];
+
+    const matches: MatchDetail[] = rawSources.map((s) =>
+      this.normalizeSource(s)
+    );
+
+    // --- Summary ---
+    const summary =
+      typeof raw.summary === "string"
+        ? raw.summary
+        : `Plagiarism analysis complete. ${matches.length} source(s) found with ${plagiarismScore}% matched content.`;
+
+    logger.info(
+      `Normalized report ${jobId}: originality=${originalityScore}%, words=${wordCount}, matches=${matches.length}`
+    );
+
+    return {
+      jobId,
+      originalityScore,
+      wordCount,
+      matches,
+      summary,
+    };
+  }
+
+  /**
+   * Normalizes a single raw source/match entry from the Quetext API
+   * into our MatchDetail type, handling multiple possible field names.
+   */
+  private normalizeSource(s: QuetextRawSource): MatchDetail {
+    return {
+      sourceUrl: s.url ?? s.source_url ?? s.link ?? undefined,
+      sourceName: s.title ?? s.source_name ?? s.name ?? undefined,
+      similarityScore: s.similarity ?? s.similarity_score ?? s.score ?? 0,
+      matchedText: s.matched_text ?? s.matchedText ?? s.text ?? s.snippet ?? undefined,
+    };
   }
 
   /**

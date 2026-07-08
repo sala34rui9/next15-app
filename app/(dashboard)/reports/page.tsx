@@ -56,7 +56,8 @@ export default function ReportsPage() {
             const mapped: ScanRecord[] = data.map((item: any) => ({
               jobId: item.id,
               completedAt: item.created_at,
-              originalityScore: item.score,
+              originalityScore: item.score != null ? Math.max(0, Math.min(100, 100 - item.score)) : undefined,
+              wordCount: item.word_count ?? item.words,
             }));
             setReports(mapped);
           }
