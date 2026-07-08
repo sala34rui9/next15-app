@@ -27,10 +27,11 @@ export interface CheckStatusResponse {
 }
 
 export interface MatchDetail {
-  matchedText?: string;
   sourceUrl?: string;
   sourceName?: string;
   similarityScore: number;
+  matchedText?: string;
+  highlightedSnippet?: string;
 }
 
 export interface FetchReportResponse {
@@ -38,7 +39,7 @@ export interface FetchReportResponse {
   originalityScore: number;
   wordCount: number;
   matches: MatchDetail[];
-  summary: string;
+  summary?: string;
 }
 
 // --- API v2 Specific Types ---
@@ -80,6 +81,13 @@ export interface QuetextRawReportData {
  * Handles multiple possible field name patterns.
  */
 export interface QuetextRawSource {
+  source?: {
+    url?: string;
+    id?: string;
+  };
+  input_text_match?: string;
+  highlighted_snippet?: string;
+  percent_similar?: number;
   url?: string;
   source_url?: string;
   link?: string;

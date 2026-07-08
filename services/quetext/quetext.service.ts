@@ -220,10 +220,11 @@ export class QuetextService {
    */
   private normalizeSource(s: QuetextRawSource): MatchDetail {
     return {
-      sourceUrl: s.url ?? s.source_url ?? s.link ?? undefined,
-      sourceName: s.title ?? s.source_name ?? s.name ?? undefined,
-      similarityScore: s.similarity ?? s.similarity_score ?? s.score ?? 0,
-      matchedText: s.matched_text ?? s.matchedText ?? s.text ?? s.snippet ?? undefined,
+      sourceUrl: s.source?.url ?? s.url ?? s.source_url ?? s.link ?? undefined,
+      sourceName: s.source?.id ?? s.title ?? s.source_name ?? s.name ?? undefined,
+      similarityScore: s.percent_similar ?? s.similarity ?? s.similarity_score ?? s.score ?? 0,
+      matchedText: s.input_text_match ?? s.matched_text ?? s.matchedText ?? s.text ?? s.snippet ?? undefined,
+      highlightedSnippet: s.highlighted_snippet ?? undefined,
     };
   }
 

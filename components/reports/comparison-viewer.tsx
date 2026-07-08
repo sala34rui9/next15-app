@@ -22,15 +22,14 @@ interface Segment {
 export function ComparisonViewer({ matches }: ComparisonViewerProps) {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   
-  // Convert API matches into display segments separated by ellipses
-  const displaySegments: Segment[] = useMemo(() => {
+  // Convert API matches into display segments for the left side (Your Document)
+  const leftSegments: Segment[] = useMemo(() => {
     if (matches.length === 0) {
       return [{ id: "empty", text: "No matches found in this document.", isMatch: false }];
     }
 
     const segments: Segment[] = [];
     matches.forEach((m, index) => {
-      // Add a non-matching spacer if not the first item
       if (index > 0) {
         segments.push({
           id: `spacer-${index}`,
@@ -38,8 +37,6 @@ export function ComparisonViewer({ matches }: ComparisonViewerProps) {
           isMatch: false,
         });
       }
-      
-      // Add the matched text
       segments.push({
         id: `match-${index}`,
         text: m.matchedText || "",
@@ -47,7 +44,31 @@ export function ComparisonViewer({ matches }: ComparisonViewerProps) {
         matchGroup: `group-${index}`,
       });
     });
+    return segments;
+  }, [matches]);
 
+  // Convert API matches into display segments for the right side (Matched Source)
+  const rightSegments: Segment[] = useMemo(() => {
+    if (matches.length === 0) {
+      return [{ id: "empty", text: "No matches found in this document.", isMatch: false }];
+    }
+
+    const segments: Segment[] = [];
+    matches.forEach((m, index) => {
+      if (index > 0) {
+        segments.push({
+          id: `spacer-${index}`,
+          text: "\n\n[ ... omitted non-matching text ... ]\n\n",
+          isMatch: false,
+        });
+      }
+      segments.push({
+        id: `match-${index}`,
+        text: m.highlightedSnippet || m.matchedText || "",
+        isMatch: true,
+        matchGroup: `group-${index}`,
+      });
+    });
     return segments;
   }, [matches]);
 
@@ -122,7 +143,7 @@ export function ComparisonViewer({ matches }: ComparisonViewerProps) {
             onScroll={handleScrollLeft}
           >
             <p>
-              {displaySegments.map((segment) => (
+              {leftSegments.map((segment) => (
                 <span
                   key={segment.id}
                   onMouseEnter={() => segment.isMatch && setActiveGroup(segment.matchGroup || null)}
@@ -159,21 +180,22 @@ export function ComparisonViewer({ matches }: ComparisonViewerProps) {
             onScroll={handleScrollRight}
           >
             <p>
-              {displaySegments.map((segment) => (
+              {rightSegments.map((segment) => (
                 <span
                   key={segment.id}
                   onMouseEnter={() => segment.isMatch && setActiveGroup(segment.matchGroup || null)}
                   onMouseLeave={() => setActiveGroup(null)}
                   className={cn(
-                    "transition-all duration-200 rounded-[3px] py-0.5",
+                    "transition-all duration-200 rounded-[3px] py-0.5 [&>b]:font-bold [&>b]:bg-amber-200/50 dark:[&>b]:bg-amber-900/50 [&>b]:px-0.5 [&>b]:rounded-sm",
                     !segment.isMatch && "text-muted-foreground italic",
                     segment.isMatch && "cursor-pointer underline decoration-amber-500/30 decoration-2 underline-offset-2",
                     segment.isMatch && !activeGroup && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
                     segment.isMatch && activeGroup === segment.matchGroup && "bg-amber-500 text-primary-foreground font-medium shadow-sm",
                     segment.isMatch && activeGroup && activeGroup !== segment.matchGroup && "opacity-40"
                   )}
+                  dangerouslySetInnerHTML={segment.isMatch ? { __html: segment.text } : undefined}
                 >
-                  {segment.text}
+                  {!segment.isMatch ? segment.text : null}
                 </span>
               ))}
             </p>
