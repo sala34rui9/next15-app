@@ -156,7 +156,7 @@ export class QuetextService {
     // Save the raw response to a file for debugging
     try {
       require("fs").writeFileSync(
-        "raw_response.json",
+        "C:\\Users\\abhis\\.gemini\\antigravity\\scratch\\next15-app\\raw_response.json",
         JSON.stringify(raw, null, 2)
       );
     } catch (e) {
@@ -210,7 +210,8 @@ export class QuetextService {
       wordCount,
       matches,
       summary,
-    };
+      raw: raw as any,
+    } as any;
   }
 
   /**

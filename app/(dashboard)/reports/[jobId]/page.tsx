@@ -115,6 +115,13 @@ export default function ReportDetailsPage() {
           <ComparisonViewer matches={matches} />
           <MatchedSourcesTable matches={matches} />
         </div>
+        
+        <div className="mt-8 p-4 border rounded-md bg-muted/20">
+          <h3 className="font-bold mb-2 text-destructive">RAW API DATA (PLEASE COPY AND SEND TO AI)</h3>
+          <pre className="text-xs overflow-auto max-h-[400px]">
+            {JSON.stringify((report as any).raw || "No raw data found. Please try scanning a new document.", null, 2)}
+          </pre>
+        </div>
       </Section>
     </Container>
   );
