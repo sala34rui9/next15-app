@@ -153,6 +153,16 @@ export class QuetextService {
     logger.info(`Fetching report for job: ${jobId}`);
     const raw = await this.fetchApi<QuetextRawReportData>(`/v2/report/${jobId}`);
 
+    // Save the raw response to a file for debugging
+    try {
+      require("fs").writeFileSync(
+        "raw_response.json",
+        JSON.stringify(raw, null, 2)
+      );
+    } catch (e) {
+      logger.error("Failed to write raw response to file", e as Error);
+    }
+
     // Log the full raw response so we can inspect the actual API shape
     logger.info(`Raw Quetext report response for ${jobId}: ${JSON.stringify(raw)}`);
 
