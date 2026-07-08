@@ -17,8 +17,9 @@ export function DownloadReportButton({ jobId }: { jobId: string }) {
       await generatePDFReport(jobId);
       toast.success("Report downloaded successfully");
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to generate PDF report");
+      console.error("PDF Export Error:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Failed to generate PDF: ${message}`);
     } finally {
       setIsGenerating(false);
     }

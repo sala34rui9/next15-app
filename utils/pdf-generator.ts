@@ -54,7 +54,11 @@ export async function generatePDFReport(jobId: string) {
     throw error;
   }
 
-  const { originalityScore, wordCount, matches, summary } = report;
+  // Safe destructuring with fallbacks (same pattern as the report page)
+  const matches = report.matches || [];
+  const originalityScore = report.originalityScore ?? 100;
+  const wordCount = report.wordCount ?? 0;
+  const summary = report.summary || "";
 
   // Derive sources from real match data
   const sources: MatchedSource[] = matches.map((m, i) => {
