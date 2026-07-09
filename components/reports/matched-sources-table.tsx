@@ -39,6 +39,7 @@ interface DerivedSource {
   words: number;
   risk: RiskLevel;
   snippet: string;
+  highlightedSnippet: string;
 }
 
 type SortKey = keyof Pick<DerivedSource, "title" | "similarity" | "words" | "risk">;
@@ -95,6 +96,7 @@ export function MatchedSourcesTable({ matches }: MatchedSourcesTableProps) {
         words: textContent.split(/\s+/).length,
         risk,
         snippet: textContent,
+        highlightedSnippet: m.highlightedSnippet || "",
       };
     });
   }, [matches]);
@@ -282,7 +284,7 @@ export function MatchedSourcesTable({ matches }: MatchedSourcesTableProps) {
                                     </div>
                                     <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 text-sm leading-relaxed text-foreground shadow-sm relative">
                                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-destructive rounded-l-lg" />
-                                      {item.snippet}
+                                      {item.highlightedSnippet || item.snippet}
                                     </div>
                                   </div>
                                 </div>
