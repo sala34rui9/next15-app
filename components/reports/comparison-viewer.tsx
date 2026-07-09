@@ -1,212 +1,247 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useMemo } from "react";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Maximize2, ExternalLink, Link2, Info } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Link2, Info, ChevronRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MatchDetail } from "@/services/quetext/quetext.types";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ComparisonViewerProps {
   matches: MatchDetail[];
+  documentText?: string | null;
 }
 
-interface Segment {
-  id: string;
-  text: string;
-  isMatch: boolean;
-  matchGroup?: string;
-}
+export function ComparisonViewer({ matches, documentText }: ComparisonViewerProps) {
+  const [activeMatchIndex, setActiveMatchIndex] = useState<number | null>(null);
 
-export function ComparisonViewer({ matches }: ComparisonViewerProps) {
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  
-  // Convert API matches into display segments for the left side (Your Document)
-  const leftSegments: Segment[] = useMemo(() => {
-    if (matches.length === 0) {
-      return [{ id: "empty", text: "No matches found in this document.", isMatch: false }];
+  // Helper to extract domain from URL
+  const getDomain = (url?: string) => {
+    if (!url) return "Unknown Source";
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch {
+      return url;
     }
-
-    const segments: Segment[] = [];
-    matches.forEach((m, index) => {
-      if (index > 0) {
-        segments.push({
-          id: `spacer-${index}`,
-          text: "\n\n[ ... omitted non-matching text ... ]\n\n",
-          isMatch: false,
-        });
-      }
-      segments.push({
-        id: `match-${index}`,
-        text: m.matchedText || "",
-        isMatch: true,
-        matchGroup: `group-${index}`,
-      });
-    });
-    return segments;
-  }, [matches]);
-
-  // Convert API matches into display segments for the right side (Matched Source)
-  const rightSegments: Segment[] = useMemo(() => {
-    if (matches.length === 0) {
-      return [{ id: "empty", text: "No matches found in this document.", isMatch: false }];
-    }
-
-    const segments: Segment[] = [];
-    matches.forEach((m, index) => {
-      if (index > 0) {
-        segments.push({
-          id: `spacer-${index}`,
-          text: "\n\n[ ... omitted non-matching text ... ]\n\n",
-          isMatch: false,
-        });
-      }
-      segments.push({
-        id: `match-${index}`,
-        text: m.highlightedSnippet || m.matchedText || "",
-        isMatch: true,
-        matchGroup: `group-${index}`,
-      });
-    });
-    return segments;
-  }, [matches]);
-
-  // Refs for synchronized scrolling
-  const leftScrollRef = useRef<HTMLDivElement>(null);
-  const rightScrollRef = useRef<HTMLDivElement>(null);
-  const isSyncingLeft = useRef(false);
-  const isSyncingRight = useRef(false);
-
-  const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!leftScrollRef.current || !rightScrollRef.current) return;
-    if (isSyncingRight.current) {
-      isSyncingRight.current = false;
-      return;
-    }
-    
-    isSyncingLeft.current = true;
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const percentage = scrollTop / (scrollHeight - clientHeight);
-    
-    const rightScrollHeight = rightScrollRef.current.scrollHeight;
-    const rightClientHeight = rightScrollRef.current.clientHeight;
-    rightScrollRef.current.scrollTop = percentage * (rightScrollHeight - rightClientHeight);
   };
 
-  const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
-    if (!leftScrollRef.current || !rightScrollRef.current) return;
-    if (isSyncingLeft.current) {
-      isSyncingLeft.current = false;
-      return;
+  // Build the left-side document content
+  const leftContent = useMemo(() => {
+    if (!matches || matches.length === 0) {
+      return <span className="text-muted-foreground italic">No matches found in this document.</span>;
     }
-    
-    isSyncingRight.current = true;
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const percentage = scrollTop / (scrollHeight - clientHeight);
-    
-    const leftScrollHeight = leftScrollRef.current.scrollHeight;
-    const leftClientHeight = leftScrollRef.current.clientHeight;
-    leftScrollRef.current.scrollTop = percentage * (leftScrollHeight - leftClientHeight);
-  };
+
+    // If we have the full original document text, highlight the matches within it
+    if (documentText) {
+      interface HighlightSpan {
+        start: number;
+        end: number;
+        matchIndex: number;
+      }
+
+      const spans: HighlightSpan[] = [];
+      matches.forEach((m, i) => {
+        if (!m.matchedText) return;
+        let startIndex = 0;
+        // Find all occurrences of the snippet in the full text
+        while (startIndex < documentText.length) {
+          const pos = documentText.indexOf(m.matchedText, startIndex);
+          if (pos === -1) break;
+          spans.push({ start: pos, end: pos + m.matchedText.length, matchIndex: i });
+          startIndex = pos + m.matchedText.length;
+        }
+      });
+
+      // Sort by start index
+      spans.sort((a, b) => a.start - b.start);
+
+      // Merge overlapping spans (greedy, takes the first one)
+      const mergedSpans: HighlightSpan[] = [];
+      let lastEnd = -1;
+      for (const span of spans) {
+        if (span.start >= lastEnd) {
+          mergedSpans.push(span);
+          lastEnd = span.end;
+        }
+      }
+
+      const elements = [];
+      let cursor = 0;
+      for (const span of mergedSpans) {
+        if (span.start > cursor) {
+          elements.push(<span key={`text-${cursor}`}>{documentText.slice(cursor, span.start)}</span>);
+        }
+        
+        const isActive = activeMatchIndex === span.matchIndex;
+        elements.push(
+          <span 
+            key={`match-${span.matchIndex}-${span.start}`}
+            onClick={() => setActiveMatchIndex(isActive ? null : span.matchIndex)}
+            className={cn(
+              "transition-all duration-200 rounded-[3px] py-0.5 cursor-pointer underline decoration-destructive/30 decoration-2 underline-offset-2",
+              !isActive && "bg-destructive/10 text-destructive-foreground hover:bg-destructive/20",
+              isActive && "bg-destructive text-destructive-foreground font-medium shadow-sm",
+              activeMatchIndex !== null && !isActive && "opacity-40"
+            )}
+          >
+            {documentText.slice(span.start, span.end)}
+          </span>
+        );
+        cursor = span.end;
+      }
+      
+      if (cursor < documentText.length) {
+        elements.push(<span key={`text-${cursor}`}>{documentText.slice(cursor)}</span>);
+      }
+
+      return <div className="whitespace-pre-wrap">{elements}</div>;
+    }
+
+    // Fallback: If documentText isn't available, stitch snippets together
+    return (
+      <div className="whitespace-pre-wrap">
+        {matches.map((m, index) => {
+          const isActive = activeMatchIndex === index;
+          return (
+            <span key={`fallback-${index}`}>
+              {index > 0 && <span className="text-muted-foreground italic">{"\n\n[ ... omitted non-matching text ... ]\n\n"}</span>}
+              <span
+                onClick={() => setActiveMatchIndex(isActive ? null : index)}
+                className={cn(
+                  "transition-all duration-200 rounded-[3px] py-0.5 cursor-pointer underline decoration-destructive/30 decoration-2 underline-offset-2",
+                  !isActive && "bg-destructive/10 text-destructive-foreground hover:bg-destructive/20",
+                  isActive && "bg-destructive text-destructive-foreground font-medium shadow-sm",
+                  activeMatchIndex !== null && !isActive && "opacity-40"
+                )}
+              >
+                {m.matchedText}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }, [matches, documentText, activeMatchIndex]);
 
   return (
-    <Card className="w-full border-muted/60 shadow-sm mt-8">
-      <CardHeader className="pb-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <Card className="w-full border-muted/60 shadow-sm mt-8 overflow-hidden">
+      <CardHeader className="pb-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/10">
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <Link2 className="w-5 h-5 text-primary" />
-            Plagiarism Comparison Viewer
+            Comparison Viewer
           </CardTitle>
-          <CardDescription>Hover over highlighted sections to see exact matches side-by-side.</CardDescription>
+          <CardDescription>Click a highlighted section or a match card to compare side-by-side.</CardDescription>
         </div>
-        <Button variant="outline" size="sm" className="hidden sm:flex">
-          <Maximize2 className="w-4 h-4 mr-2" />
-          Full Screen
-        </Button>
       </CardHeader>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x border-b">
+      <div className="flex flex-col lg:flex-row h-[600px] divide-y lg:divide-y-0 lg:divide-x border-b">
         
-        {/* Left Side: Uploaded Document */}
-        <div className="flex flex-col h-[500px] bg-muted/5">
-          <div className="p-3 border-b bg-muted/20 flex items-center justify-between sticky top-0 z-10">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="bg-background">Your Document</Badge>
-              <span className="text-xs text-muted-foreground hidden sm:inline-block">Scanned Text</span>
-            </div>
+        {/* Left Side: Your Document */}
+        <div className="flex-1 flex flex-col bg-background/50 relative">
+          <div className="p-3 border-b bg-muted/5 flex items-center justify-between sticky top-0 z-10">
+            <Badge variant="outline" className="bg-background">Your Document</Badge>
           </div>
-          
-          <div 
-            ref={leftScrollRef}
-            className="flex-1 overflow-y-auto p-6 text-sm leading-relaxed text-foreground/90 space-y-2 relative scroll-smooth whitespace-pre-wrap"
-            onScroll={handleScrollLeft}
-          >
-            <p>
-              {leftSegments.map((segment) => (
-                <span
-                  key={segment.id}
-                  onMouseEnter={() => segment.isMatch && setActiveGroup(segment.matchGroup || null)}
-                  onMouseLeave={() => setActiveGroup(null)}
-                  className={cn(
-                    "transition-all duration-200 rounded-[3px] py-0.5",
-                    !segment.isMatch && "text-muted-foreground italic",
-                    segment.isMatch && "cursor-pointer underline decoration-destructive/30 decoration-2 underline-offset-2",
-                    segment.isMatch && !activeGroup && "bg-destructive/10 text-destructive-foreground",
-                    segment.isMatch && activeGroup === segment.matchGroup && "bg-destructive text-destructive-foreground font-medium shadow-sm",
-                    segment.isMatch && activeGroup && activeGroup !== segment.matchGroup && "opacity-40"
-                  )}
-                >
-                  {segment.text}
-                </span>
-              ))}
-            </p>
+          <div className="flex-1 overflow-y-auto p-6 text-sm leading-relaxed text-foreground/90 scroll-smooth">
+            {leftContent}
           </div>
         </div>
 
-        {/* Right Side: Matched Source */}
-        <div className="flex flex-col h-[500px] bg-muted/5">
+        {/* Right Side: Plagiarism Matches Sidebar */}
+        <div className="w-full lg:w-[400px] flex flex-col bg-muted/10 relative">
           <div className="p-3 border-b bg-muted/20 flex items-center justify-between sticky top-0 z-10">
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive" className="flex items-center gap-1">
-                Matched Sources
-              </Badge>
-            </div>
+            <Badge variant="destructive" className="flex items-center gap-1">
+              Plagiarism Matches
+            </Badge>
+            <span className="text-xs font-medium text-muted-foreground">{matches.length} found</span>
           </div>
           
-          <div 
-            ref={rightScrollRef}
-            className="flex-1 overflow-y-auto p-6 text-sm leading-relaxed text-foreground/90 space-y-2 relative scroll-smooth whitespace-pre-wrap"
-            onScroll={handleScrollRight}
-          >
-            <p>
-              {rightSegments.map((segment) => (
-                <span
-                  key={segment.id}
-                  onMouseEnter={() => segment.isMatch && setActiveGroup(segment.matchGroup || null)}
-                  onMouseLeave={() => setActiveGroup(null)}
-                  className={cn(
-                    "transition-all duration-200 rounded-[3px] py-0.5 [&>b]:font-bold [&>b]:bg-amber-200/50 dark:[&>b]:bg-amber-900/50 [&>b]:px-0.5 [&>b]:rounded-sm",
-                    !segment.isMatch && "text-muted-foreground italic",
-                    segment.isMatch && "cursor-pointer underline decoration-amber-500/30 decoration-2 underline-offset-2",
-                    segment.isMatch && !activeGroup && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                    segment.isMatch && activeGroup === segment.matchGroup && "bg-amber-500 text-primary-foreground font-medium shadow-sm",
-                    segment.isMatch && activeGroup && activeGroup !== segment.matchGroup && "opacity-40"
-                  )}
-                  dangerouslySetInnerHTML={segment.isMatch ? { __html: segment.text } : undefined}
-                >
-                  {!segment.isMatch ? segment.text : null}
-                </span>
-              ))}
-            </p>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 scroll-smooth">
+            {matches.length === 0 ? (
+              <div className="text-center p-6 text-sm text-muted-foreground italic">No matches found.</div>
+            ) : (
+              matches.map((m, index) => {
+                const isActive = activeMatchIndex === index;
+                const similarity = m.similarityScore || 0;
+                
+                return (
+                  <div 
+                    key={`sidebar-${index}`}
+                    className={cn(
+                      "border rounded-lg transition-all overflow-hidden bg-card cursor-pointer hover:border-destructive/50",
+                      isActive ? "border-destructive ring-1 ring-destructive/20 shadow-sm" : "border-muted"
+                    )}
+                    onClick={() => setActiveMatchIndex(isActive ? null : index)}
+                  >
+                    {/* Card Header (Always visible) */}
+                    <div className="p-3 flex items-start gap-3">
+                      <div className={cn(
+                        "flex items-center justify-center px-2 py-1 rounded text-xs font-bold",
+                        similarity > 80 ? "bg-destructive/10 text-destructive" : similarity > 50 ? "bg-amber-500/10 text-amber-600" : "bg-blue-500/10 text-blue-600"
+                      )}>
+                        {similarity}%
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate pr-2">{getDomain(m.sourceUrl)}</div>
+                        {m.sourceUrl && (
+                          <div className="text-xs text-muted-foreground truncate opacity-80 mt-0.5">
+                            {m.sourceUrl}
+                          </div>
+                        )}
+                      </div>
+                      <ChevronRight className={cn(
+                        "w-4 h-4 text-muted-foreground transition-transform shrink-0 mt-1",
+                        isActive && "rotate-90 text-destructive"
+                      )} />
+                    </div>
+
+                    {/* Card Body (Expanded state) */}
+                    <AnimatePresence>
+                      {isActive && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <div className="px-3 pb-4 pt-1 border-t border-muted/50 bg-destructive/5">
+                            <div className="flex items-center justify-between mb-2 mt-2">
+                              <span className="text-xs font-bold uppercase tracking-wider text-destructive">Matched Source Text</span>
+                              {m.sourceUrl && (
+                                <a 
+                                  href={m.sourceUrl} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-primary hover:underline flex items-center gap-1"
+                                >
+                                  Visit <ExternalLink className="w-3 h-3" />
+                                </a>
+                              )}
+                            </div>
+                            <div 
+                              className="text-sm text-foreground/90 leading-relaxed max-h-[250px] overflow-y-auto pr-2 custom-scrollbar [&>mark]:bg-amber-200/60 dark:[&>mark]:bg-amber-900/60 [&>mark]:text-inherit [&>mark]:rounded-sm [&>mark]:px-0.5"
+                              dangerouslySetInnerHTML={{ __html: m.highlightedSnippet || m.matchedText || "No text available." }}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
-
       </div>
-      <CardContent className="bg-muted/10 p-3 flex items-center gap-2 text-xs text-muted-foreground justify-center border-t">
-        <Info className="w-4 h-4" />
-        Scrolling is synchronized between the two panels. Click or hover on highlighted text to compare differences.
-      </CardContent>
+      
+      <div className="bg-muted/5 p-3 flex flex-col sm:flex-row items-center gap-2 text-xs text-muted-foreground justify-center border-t">
+        <Info className="w-4 h-4 text-primary" />
+        {documentText 
+          ? "The full passage is visible above. Click highlighted portions to see exactly where they matched the internet." 
+          : "Full text is not available for this session. Showing stitched snippets."}
+      </div>
     </Card>
   );
 }

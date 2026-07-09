@@ -22,6 +22,7 @@ export default function ReportDetailsPage() {
   const [report, setReport] = useState<FetchReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [documentText, setDocumentText] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchReport() {
@@ -50,6 +51,14 @@ export default function ReportDetailsPage() {
     
     if (jobId) {
       fetchReport();
+      try {
+        const savedText = localStorage.getItem(`quetext-doc-${jobId}`);
+        if (savedText) {
+          setDocumentText(savedText);
+        }
+      } catch (e) {
+        console.warn("Could not read document from localStorage", e);
+      }
     }
   }, [jobId]);
 
@@ -112,7 +121,7 @@ export default function ReportDetailsPage() {
           <p className="text-muted-foreground text-sm mb-4">
             Review the exact internet sources that matched your document and compare them side-by-side.
           </p>
-          <ComparisonViewer matches={matches} />
+          <ComparisonViewer matches={matches} documentText={documentText} />
           <MatchedSourcesTable matches={matches} />
         </div>
       </Section>

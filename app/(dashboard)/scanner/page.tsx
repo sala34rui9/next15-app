@@ -43,6 +43,15 @@ export default function ScannerPage() {
 
       const responseData = await res.json();
       
+      // Save the original text to localStorage so we can display the full passage in the report
+      if (data.type === "text") {
+        try {
+          localStorage.setItem(`quetext-doc-${responseData.jobId}`, data.payload as string);
+        } catch (e) {
+          console.warn("Failed to save document to localStorage", e);
+        }
+      }
+
       // Redirect immediately to the dedicated progress page
       router.push(`/scanner/${responseData.jobId}`);
     } catch (error) {
