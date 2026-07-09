@@ -26,6 +26,30 @@ export function ComparisonViewer({ matches, documentText }: ComparisonViewerProp
     }
   };
 
+  // Helper to build a Text Fragment URL for browser-native highlighting
+  const buildTextFragmentUrl = (url?: string, text?: string) => {
+    if (!url) return "#";
+    if (!text) return url;
+    try {
+      const cleanText = text.trim();
+      const words = cleanText.split(/\s+/);
+      let fragment = "";
+      if (words.length > 8) {
+        // Use first 4 words and last 4 words
+        const start = encodeURIComponent(words.slice(0, 4).join(" "));
+        const end = encodeURIComponent(words.slice(-4).join(" "));
+        fragment = `#:~:text=${start},${end}`;
+      } else {
+        fragment = `#:~:text=${encodeURIComponent(cleanText)}`;
+      }
+      
+      const parsedUrl = new URL(url);
+      return `${parsedUrl.origin}${parsedUrl.pathname}${parsedUrl.search}${fragment}`;
+    } catch {
+      return url;
+    }
+  };
+
   // Build the left-side document content
   const leftContent = useMemo(() => {
     if (!matches || matches.length === 0) {
@@ -210,7 +234,7 @@ export function ComparisonViewer({ matches, documentText }: ComparisonViewerProp
                               <span className="text-xs font-bold uppercase tracking-wider text-destructive">Matched Source Text</span>
                               {m.sourceUrl && (
                                 <a 
-                                  href={m.sourceUrl} 
+                                  href={buildTextFragmentUrl(m.sourceUrl, m.matchedText)} 
                                   target="_blank" 
                                   rel="noreferrer" 
                                   onClick={(e) => e.stopPropagation()}
@@ -221,7 +245,7 @@ export function ComparisonViewer({ matches, documentText }: ComparisonViewerProp
                               )}
                             </div>
                             <div 
-                              className="text-sm text-foreground/90 leading-relaxed max-h-[250px] overflow-y-auto pr-2 custom-scrollbar [&>mark]:bg-amber-200/60 dark:[&>mark]:bg-amber-900/60 [&>mark]:text-inherit [&>mark]:rounded-sm [&>mark]:px-0.5"
+                              className="text-sm text-foreground/90 leading-relaxed max-h-[250px] overflow-y-auto pr-2 custom-scrollbar [&>mark]:bg-amber-200/60 dark:[&>mark]:bg-amber-900/60 [&>mark]:text-inherit [&>mark]:rounded-sm [&>mark]:px-0.5 [&>b]:bg-amber-200/60 dark:[&>b]:bg-amber-900/60 [&>b]:text-inherit [&>b]:rounded-sm [&>b]:px-0.5"
                               dangerouslySetInnerHTML={{ __html: m.highlightedSnippet || m.matchedText || "No text available." }}
                             />
                           </div>

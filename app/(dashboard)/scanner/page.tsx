@@ -44,12 +44,18 @@ export default function ScannerPage() {
       const responseData = await res.json();
       
       // Save the original text to localStorage so we can display the full passage in the report
-      if (data.type === "text") {
-        try {
+      try {
+        if (data.type === "text") {
           localStorage.setItem(`quetext-doc-${responseData.jobId}`, data.payload as string);
-        } catch (e) {
-          console.warn("Failed to save document to localStorage", e);
+        } else if (data.type === "file") {
+          const file = data.payload as File;
+          if (file.name.endsWith(".txt")) {
+            const text = await file.text();
+            localStorage.setItem(`quetext-doc-${responseData.jobId}`, text);
+          }
         }
+      } catch (e) {
+        console.warn("Failed to save document to localStorage", e);
       }
 
       // Redirect immediately to the dedicated progress page
