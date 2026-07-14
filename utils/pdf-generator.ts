@@ -1,4 +1,4 @@
-import { PDFDocument, PDFPage, PDFFont, RGB, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, PDFPage, PDFFont, RGB, rgb, StandardFonts, degrees } from "pdf-lib";
 import { FetchReportResponse } from "@/services/quetext/quetext.types";
 import { getApiConfig } from "@/utils/api-config";
 
@@ -56,6 +56,45 @@ export interface BarDatum {
   label: string;
   value: number;
   color: RGB;
+}
+
+// ---------------------------------------------------------------------------
+// Risk-color helpers
+// ---------------------------------------------------------------------------
+
+interface RiskColors {
+  dot: RGB;
+  bg: RGB;
+  text: RGB;
+  accent: RGB;
+  fill: RGB;
+}
+
+function getPdfRiskColors(score: number, palette: ColorPalette): RiskColors {
+  if (score < 50) {
+    return { dot: palette.danger, bg: rgb(0.97, 0.92, 0.92), text: palette.danger, accent: palette.danger, fill: palette.danger };
+  }
+  if (score < 80) {
+    return { dot: palette.warning, bg: rgb(0.98, 0.95, 0.88), text: palette.warning, accent: palette.warning, fill: palette.warning };
+  }
+  return { dot: palette.success, bg: rgb(0.92, 0.97, 0.93), text: palette.success, accent: palette.success, fill: palette.success };
+}
+
+function drawRoundedRect(page: PDFPage, x: number, y: number, width: number, height: number, radius: number, color: RGB, borderColor?: RGB, borderWidth?: number): void {
+  const r = Math.min(radius, width / 2, height / 2);
+  const path = [
+    `M ${x + r} ${y}`,
+    `L ${x + width - r} ${y}`,
+    `A ${r} ${r} 0 0 1 ${x + width} ${y - r}`,
+    `L ${x + width} ${y - height + r}`,
+    `A ${r} ${r} 0 0 1 ${x + width - r} ${y - height}`,
+    `L ${x + r} ${y - height}`,
+    `A ${r} ${r} 0 0 1 ${x} ${y - height + r}`,
+    `L ${x} ${y - r}`,
+    `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
+    `Z`,
+  ].join(" ");
+  page.drawSvgPath(path, { color, borderColor, borderWidth: borderWidth ?? 0 });
 }
 
 // ---------------------------------------------------------------------------
@@ -328,17 +367,36 @@ export class PdfLayoutEngine {
     this.pages.push(newPage);
     this.currentPage = newPage;
     this.currentY = this.layout.PAGE_HEIGHT - this.layout.MARGIN;
-    drawHeader(newPage, this);
+    drawHeader(newPage, this, (this as any)._riskAccent);
     this.currentY -= 60;
   }
 
   finaliseFooters(): void {
     const total = this.pages.length;
+    const dateStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    const footerText = `${this.branding.appName} · Generated ${dateStr}`;
     this.pages.forEach((p, idx) => {
-      p.drawText(`Page ${idx + 1} of ${total}`, {
-        x: this.layout.PAGE_WIDTH / 2 - 30,
-        y: 20,
-        size: 9,
+      const pageNumText = `Page ${idx + 1} of ${total}`;
+      const pageNumWidth = this.fonts.regular.widthOfTextAtSize(pageNumText, 7);
+      // Border line above footer
+      p.drawLine({
+        start: { x: this.layout.MARGIN, y: 50 },
+        end: { x: this.layout.PAGE_WIDTH - this.layout.MARGIN, y: 50 },
+        thickness: 0.5, color: this.colors.border,
+      });
+      // Page number (centered)
+      p.drawText(pageNumText, {
+        x: this.layout.PAGE_WIDTH / 2 - pageNumWidth / 2,
+        y: 34,
+        size: 7,
+        font: this.fonts.regular,
+        color: this.colors.textMuted,
+      });
+      // Brand + date (left-aligned)
+      p.drawText(footerText, {
+        x: this.layout.MARGIN,
+        y: 34,
+        size: 7,
         font: this.fonts.regular,
         color: this.colors.textMuted,
       });
@@ -350,27 +408,54 @@ export class PdfLayoutEngine {
 // Task 7 — drawHeader
 // ---------------------------------------------------------------------------
 
-function drawHeader(page: PDFPage, engine: PdfLayoutEngine): void {
+/**
+ * Adds a translucent diagonal watermark across every page.
+ * Used for high-plagiarism reports to flag risk visually.
+ */
+function addWatermark(engine: PdfLayoutEngine, text: string, color: RGB): void {
+  const { PAGE_WIDTH, PAGE_HEIGHT } = engine.layout;
+  engine.pages.forEach((page) => {
+    page.drawText(text, {
+      x: PAGE_WIDTH / 2 - 120,
+      y: PAGE_HEIGHT / 2,
+      size: 48,
+      font: engine.fonts.bold,
+      color,
+      rotate: degrees(45),
+      opacity: 0.06,
+    });
+  });
+}
+
+function drawHeader(page: PDFPage, engine: PdfLayoutEngine, riskAccent?: RGB): void {
   const { MARGIN, PAGE_WIDTH, PAGE_HEIGHT } = engine.layout;
   const { fonts, colors, branding, jobId } = engine;
 
+  // Risk-colored accent bar (3pt) — mirrors dashboard HeroScorePanel gradient accent
+  const accentColor = riskAccent ?? colors.primary;
+  page.drawRectangle({
+    x: MARGIN, y: PAGE_HEIGHT - MARGIN - 2, width: 40, height: 3,
+    color: accentColor,
+  });
+
   page.drawText(branding.appName, {
-    x: MARGIN, y: PAGE_HEIGHT - MARGIN, size: 22, font: fonts.bold, color: colors.primary,
+    x: MARGIN, y: PAGE_HEIGHT - MARGIN - 10, size: 20, font: fonts.bold, color: colors.text,
   });
   page.drawText(branding.appTagline, {
-    x: MARGIN + 2, y: PAGE_HEIGHT - MARGIN - 16, size: 8, font: fonts.bold, color: colors.textMuted,
+    x: MARGIN + 2, y: PAGE_HEIGHT - MARGIN - 26, size: 8, font: fonts.bold, color: colors.textMuted,
   });
-  const dateStr = new Date().toLocaleDateString();
-  page.drawText(`Date: ${dateStr}`, {
-    x: PAGE_WIDTH - MARGIN - 80, y: PAGE_HEIGHT - MARGIN, size: 9, font: fonts.regular, color: colors.textMuted,
+  const dateStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const rightX = PAGE_WIDTH - MARGIN;
+  page.drawText(dateStr, {
+    x: rightX - 80, y: PAGE_HEIGHT - MARGIN - 10, size: 8, font: fonts.regular, color: colors.textMuted,
   });
   page.drawText(`Report ID: ${jobId}`, {
-    x: PAGE_WIDTH - MARGIN - 80, y: PAGE_HEIGHT - MARGIN - 14, size: 8, font: fonts.regular, color: colors.textMuted,
+    x: rightX - 80, y: PAGE_HEIGHT - MARGIN - 22, size: 7, font: fonts.regular, color: colors.textMuted,
   });
   page.drawLine({
-    start: { x: MARGIN, y: PAGE_HEIGHT - MARGIN - 28 },
-    end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - MARGIN - 28 },
-    thickness: 1, color: colors.border,
+    start: { x: MARGIN, y: PAGE_HEIGHT - MARGIN - 32 },
+    end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - MARGIN - 32 },
+    thickness: 0.75, color: colors.border,
   });
 }
 
@@ -391,46 +476,94 @@ function drawExecutiveSummary(
   const { MARGIN, PAGE_WIDTH, CONTENT_WIDTH } = engine.layout;
   const { fonts, colors } = engine;
   const page = engine.currentPage;
+  const riskColors = getPdfRiskColors(data.originalityScore, colors);
+  const CARD_RADIUS = 5;
+  const CARD_GAP = 6;
+  const CARD_WIDTH = (CONTENT_WIDTH - CARD_GAP * 3) / 4;
+  const CARD_HEIGHT = 72;
 
-  engine.checkPageBreak(160);
+  engine.checkPageBreak(180);
 
-  // Report title
+  // Report title with risk-colored dot indicator
   page.drawText("Originality Assessment Report", {
-    x: MARGIN, y: engine.currentY, size: 18, font: fonts.bold, color: colors.text,
+    x: MARGIN, y: engine.currentY, size: 16, font: fonts.bold, color: colors.text,
   });
-  engine.currentY -= 20;
+  engine.currentY -= 18;
 
-  // Summary subtitle
-  const subtitleText = data.summary || "Detailed breakdown of matched internet sources and overall originality.";
-  page.drawText(sanitizeTextForPdf(subtitleText.slice(0, 90)), {
+  // Summary subtitle — show if available, otherwise a context-aware default
+  const subtitleText = data.summary
+    ? sanitizeTextForPdf(data.summary.slice(0, 120))
+    : "Detailed breakdown of matched internet sources and overall originality.";
+  page.drawText(subtitleText, {
     x: MARGIN, y: engine.currentY, size: 9, font: fonts.regular, color: colors.textMuted,
   });
-  engine.currentY -= 25;
+  engine.currentY -= 24;
 
-  // Summary card background
-  const cardHeight = 85;
-  page.drawRectangle({
-    x: MARGIN, y: engine.currentY - cardHeight, width: CONTENT_WIDTH, height: cardHeight,
-    color: colors.bgGray, borderColor: colors.border, borderWidth: 1,
-  });
+  // 4 separate metric cards (mirrors dashboard grid-cols-4 layout)
+  const cardTopY = engine.currentY;
+  const qualityRating = data.originalityScore >= 90 ? "Excellent" : data.originalityScore >= 70 ? "Fair" : "Critical";
 
-  const metricY = engine.currentY - 28;
-  const colWidth = CONTENT_WIDTH / 4;
-
-  const metrics = [
-    { label: "Originality", value: `${data.originalityScore}%`, color: colors.success },
-    { label: "Risk Level", value: data.riskLevel, color: colors.primary },
-    { label: "Total Words", value: data.wordCount.toLocaleString(), color: colors.text },
-    { label: "Sources Found", value: String(data.sourceCount), color: colors.warning },
+  const cards = [
+    {
+      label: "Originality",
+      value: `${data.originalityScore}%`,
+      color: riskColors.text,
+      accent: riskColors.accent,
+    },
+    {
+      label: "Risk Level",
+      value: `${data.riskLevel} Risk`,
+      color: riskColors.text,
+      accent: riskColors.accent,
+      pill: true,
+      pillBg: riskColors.bg,
+    },
+    {
+      label: "Total Words",
+      value: data.wordCount.toLocaleString(),
+      color: colors.text,
+      accent: colors.primary,
+    },
+    {
+      label: "Quality",
+      value: qualityRating,
+      color: riskColors.text,
+      accent: riskColors.accent,
+    },
   ];
 
-  metrics.forEach((m, i) => {
-    const x = MARGIN + 15 + i * colWidth;
-    page.drawText(m.value, { x, y: metricY, size: 20, font: fonts.bold, color: m.color });
-    page.drawText(m.label, { x, y: metricY - 18, size: 9, font: fonts.regular, color: colors.textMuted });
+  cards.forEach((card, i) => {
+    const cx = MARGIN + i * (CARD_WIDTH + CARD_GAP);
+    // Card background with rounded corners
+    drawRoundedRect(page, cx, cardTopY, CARD_WIDTH, CARD_HEIGHT, CARD_RADIUS, rgb(0.985, 0.985, 0.985), colors.border, 0.5);
+    // Top accent line
+    page.drawRectangle({
+      x: cx + 1, y: cardTopY - 1.5, width: CARD_WIDTH - 2, height: 3,
+      color: card.accent,
+    });
+    // Metric value
+    const valueSize = card.value.length > 8 ? 16 : 20;
+    page.drawText(card.value, {
+      x: cx + 12, y: cardTopY - 30, size: valueSize, font: fonts.bold, color: card.color,
+    });
+    // Metric label
+    page.drawText(card.label, {
+      x: cx + 12, y: cardTopY - 46, size: 8, font: fonts.regular, color: colors.textMuted,
+    });
+    // Optional risk-level pill
+    if (card.pill) {
+      const pillText = card.value;
+      const pillW = fonts.bold.widthOfTextAtSize(pillText, 7) + 12;
+      const pillX = cx + 12;
+      const pillY = cardTopY - 60;
+      drawRoundedRect(page, pillX, pillY, pillW, 14, 3, card.pillBg ?? colors.bgGray);
+      page.drawText(pillText, {
+        x: pillX + 6, y: pillY - 9, size: 7, font: fonts.bold, color: card.color,
+      });
+    }
   });
 
-  engine.currentY -= cardHeight + 20;
+  engine.currentY = cardTopY - CARD_HEIGHT - 20;
 }
 
 // ---------------------------------------------------------------------------
@@ -438,25 +571,25 @@ function drawExecutiveSummary(
 // ---------------------------------------------------------------------------
 
 export function drawDonutChart(engine: PdfLayoutEngine, originalityScore: number): void {
-  const { MARGIN, PAGE_WIDTH } = engine.layout;
+  const { MARGIN, PAGE_WIDTH, CONTENT_WIDTH } = engine.layout;
   const { fonts, colors } = engine;
   const page = engine.currentPage;
-
-  engine.checkPageBreak(220);
-
-  // Section heading
-  page.drawText("Content Composition", {
-    x: MARGIN, y: engine.currentY, size: 13, font: fonts.bold, color: colors.text,
-  });
-  engine.currentY -= 5;
-
+  const riskColors = getPdfRiskColors(originalityScore, colors);
   const clampedScore = Math.max(0, Math.min(100, originalityScore));
   const plagiarismScore = 100 - clampedScore;
 
+  engine.checkPageBreak(200);
+
+  // Section heading
+  page.drawText("Content Composition", {
+    x: MARGIN, y: engine.currentY, size: 14, font: fonts.bold, color: colors.text,
+  });
+  engine.currentY -= 8;
+
   const cx = PAGE_WIDTH / 2;
-  const cy = engine.currentY - 85;
-  const R = 68; // outer radius
-  const r = 36; // inner radius (donut hole)
+  const cy = engine.currentY - 78;
+  const R = 60; // outer radius
+  const r = 34; // inner radius (donut hole)
 
   // Helper: point on circle
   const pt = (angle: number, radius: number) => ({
@@ -482,46 +615,63 @@ export function drawDonutChart(engine: PdfLayoutEngine, originalityScore: number
       `Z`,
     ].join(" ");
 
-    page.drawSvgPath(path, { color, borderWidth: 0 });
+    page.drawSvgPath(path, { color, borderWidth: 0.5, borderColor: rgb(1, 1, 1) });
   };
 
   if (plagiarismScore === 0) {
-    // Full circle blue via two-arc SVG ellipse
+    // Single continuous ring using a thick stroked arc (cleaner than two ellipses)
     const fullOuter = `M ${(cx - R).toFixed(2)} ${cy.toFixed(2)} A ${R} ${R} 0 1 1 ${(cx + R).toFixed(2)} ${cy.toFixed(2)} A ${R} ${R} 0 1 1 ${(cx - R).toFixed(2)} ${cy.toFixed(2)} Z`;
-    page.drawSvgPath(fullOuter, { color: colors.primary, borderWidth: 0 });
+    page.drawSvgPath(fullOuter, { color: riskColors.fill, borderWidth: 0 });
     const fullInner = `M ${(cx - r).toFixed(2)} ${cy.toFixed(2)} A ${r} ${r} 0 1 1 ${(cx + r).toFixed(2)} ${cy.toFixed(2)} A ${r} ${r} 0 1 1 ${(cx - r).toFixed(2)} ${cy.toFixed(2)} Z`;
-    page.drawSvgPath(fullInner, { color: colors.bgGray, borderWidth: 0 });
+    page.drawSvgPath(fullInner, { color: rgb(1, 1, 1), borderWidth: 0 });
   } else {
     // Angles: start at top (-PI/2), go clockwise
     const startAngle = -Math.PI / 2;
     const splitAngle = startAngle + (clampedScore / 100) * 2 * Math.PI;
     const endAngle = startAngle + 2 * Math.PI;
 
-    drawArcSegment(startAngle, splitAngle, colors.primary);
+    drawArcSegment(startAngle, splitAngle, riskColors.fill);
     drawArcSegment(splitAngle, endAngle, colors.danger);
   }
 
-  // Center label
+  // Center score label
   page.drawText(`${clampedScore}%`, {
-    x: cx - 16, y: cy - 7, size: 16, font: fonts.bold, color: colors.text,
+    x: cx - 18, y: cy - 4, size: 18, font: fonts.bold, color: colors.text,
+  });
+  // Risk label below score
+  const riskLabel = `${getRiskLabel(clampedScore)} Risk`;
+  page.drawText(riskLabel, {
+    x: cx - fonts.bold.widthOfTextAtSize(riskLabel, 7) / 2, y: cy - 18, size: 7,
+    font: fonts.bold, color: riskColors.text,
   });
 
-  engine.currentY = cy - R - 20;
+  engine.currentY = cy - R - 16;
 
-  // Legend
+  // Risk-colored end caps on the donut (visual polish — mirrors dashboard gauge markers)
+  const leftPt = pt(-Math.PI / 2, R + 1);
+  page.drawCircle({ x: leftPt.x, y: leftPt.y, size: 4, color: riskColors.dot });
+
+  // Legend with risk-colored swatches
   const legendY = engine.currentY;
-  // Blue swatch
-  page.drawRectangle({ x: MARGIN + 40, y: legendY - 4, width: 12, height: 12, color: colors.primary });
-  page.drawText(`Original Content \u2014 ${clampedScore}%`, {
-    x: MARGIN + 57, y: legendY, size: 9, font: fonts.regular, color: colors.text,
+  // Original-content swatch (risk-colored)
+  drawRoundedRect(page, MARGIN + 50, legendY - 4, 10, 10, 2, riskColors.fill);
+  page.drawText(`Original Content — ${clampedScore}%`, {
+    x: MARGIN + 64, y: legendY, size: 8, font: fonts.regular, color: colors.text,
   });
-  // Red swatch
-  page.drawRectangle({ x: PAGE_WIDTH / 2 + 10, y: legendY - 4, width: 12, height: 12, color: colors.danger });
-  page.drawText(`Matched Content \u2014 ${plagiarismScore}%`, {
-    x: PAGE_WIDTH / 2 + 27, y: legendY, size: 9, font: fonts.regular, color: colors.text,
+  // Matched-content swatch
+  drawRoundedRect(page, PAGE_WIDTH / 2 + 20, legendY - 4, 10, 10, 2, colors.danger);
+  page.drawText(`Matched Content — ${plagiarismScore}%`, {
+    x: PAGE_WIDTH / 2 + 34, y: legendY, size: 8, font: fonts.regular, color: colors.text,
   });
 
-  engine.currentY -= 25;
+  engine.currentY -= 22;
+}
+
+/** Returns a human-readable risk label for a given originality score. */
+function getRiskLabel(originalityScore: number): string {
+  if (originalityScore < 50) return "High";
+  if (originalityScore < 80) return "Medium";
+  return "Low";
 }
 
 // ---------------------------------------------------------------------------
@@ -532,44 +682,47 @@ export function drawSourceDistributionChart(engine: PdfLayoutEngine, chartData: 
   const { MARGIN } = engine.layout;
   const { fonts, colors } = engine;
   const page = engine.currentPage;
+  // Per-bar risk colors (cycles through risk-high, risk-medium, risk-low)
+  const barColors = [colors.danger, colors.warning, colors.primary, rgb(0.45, 0.55, 0.75), rgb(0.55, 0.45, 0.65)];
 
   engine.checkPageBreak(40);
   page.drawText("Source Distribution", {
-    x: MARGIN, y: engine.currentY, size: 13, font: fonts.bold, color: colors.text,
+    x: MARGIN, y: engine.currentY, size: 14, font: fonts.bold, color: colors.text,
   });
-  engine.currentY -= 18;
+  engine.currentY -= 16;
 
   if (chartData.length === 0) {
     page.drawText("No source data available.", {
-      x: MARGIN, y: engine.currentY, size: 10, font: fonts.regular, color: colors.textMuted,
+      x: MARGIN, y: engine.currentY, size: 9, font: fonts.regular, color: colors.textMuted,
     });
-    engine.currentY -= 20;
+    engine.currentY -= 18;
     return;
   }
 
-  const MAX_BAR_WIDTH = 250;
+  const MAX_BAR_WIDTH = 200;
   const maxVal = Math.max(...chartData.map(d => d.value));
+  const labelWidth = 130;
 
-  chartData.forEach((data) => {
-    engine.checkPageBreak(22);
+  chartData.forEach((data, i) => {
+    engine.checkPageBreak(20);
+    const barColor = barColors[i % barColors.length];
     const barWidth = maxVal > 0 ? (data.value / maxVal) * MAX_BAR_WIDTH : 0;
     const labelX = MARGIN;
-    const barX = MARGIN + 130;
+    const barX = MARGIN + labelWidth;
     const countX = barX + barWidth + 8;
 
     let label = sanitizeTextForPdf(data.label);
-    if (label.length > 20) label = label.slice(0, 20) + "\u2026";
+    if (label.length > 22) label = label.slice(0, 22) + "\u2026";
 
     page.drawText(label, {
-      x: labelX, y: engine.currentY, size: 9, font: fonts.regular, color: colors.textMuted,
+      x: labelX, y: engine.currentY, size: 8, font: fonts.regular, color: colors.textMuted,
     });
-    page.drawRectangle({
-      x: barX, y: engine.currentY - 2, width: Math.max(barWidth, 2), height: 12, color: colors.primary,
-    });
+    // Rounded bar
+    drawRoundedRect(page, barX, engine.currentY - 2, Math.max(barWidth, 3), 12, 2, barColor);
     page.drawText(`${data.value}`, {
       x: countX, y: engine.currentY, size: 9, font: fonts.bold, color: colors.text,
     });
-    engine.currentY -= 20;
+    engine.currentY -= 18;
   });
 
   engine.currentY -= 10;
@@ -663,72 +816,85 @@ export function drawComparisonSection(
 ): void {
   const { MARGIN, CONTENT_WIDTH } = engine.layout;
   const { fonts, colors } = engine;
+  const similarity = match.similarityScore || 0;
+  const matchType = getMatchType(similarity);
+  const riskColors = getPdfRiskColors(similarity, colors);
 
-  const leftText = sanitizeTextForPdf(truncateText(match.matchedText || "", 400));
-  const sourceText = sanitizeTextForPdf(truncateText(stripHtml(match.highlightedSnippet || match.matchedText || ""), 400));
+  // Use more generous truncation for better content fidelity
+  const leftText = sanitizeTextForPdf(truncateText(match.matchedText || "", 800));
+  const sourceText = sanitizeTextForPdf(truncateText(stripHtml(match.highlightedSnippet || match.matchedText || ""), 800));
   const sourceUrl = sanitizeTextForPdf(match.sourceUrl || "Unknown Source");
 
-  const estimatedHeight = 160;
-  engine.checkPageBreak(estimatedHeight);
-
   const page = engine.currentPage;
-  const halfWidth = CONTENT_WIDTH / 2 - 5;
+  const halfWidth = CONTENT_WIDTH / 2 - 6;
+  const LINE_HEIGHT = 11;
+  const MAX_LINES_PER_PANEL = 6;
 
-  // Match heading
+  const leftLines = wrapText(leftText, 42).slice(0, MAX_LINES_PER_PANEL);
+  const rightLines = wrapText(sourceText, 42).slice(0, MAX_LINES_PER_PANEL);
+  const panelHeight = Math.max(
+    60 + Math.max(leftLines.length, rightLines.length) * LINE_HEIGHT,
+    100
+  );
+
+  engine.checkPageBreak(panelHeight + 40);
+
+  // Match heading + similarity badge (mirrors dashboard's colored % pill)
   page.drawText(`Match ${index + 1}`, {
-    x: MARGIN, y: engine.currentY, size: 11, font: fonts.bold, color: colors.primary,
+    x: MARGIN, y: engine.currentY, size: 11, font: fonts.bold, color: colors.text,
   });
-  engine.currentY -= 18;
 
+  // Similarity % pill
+  const pillText = `${similarity}%`;
+  const pillTypeText = `  ${matchType}`;
+  const pillBgWidth = fonts.bold.widthOfTextAtSize(pillText, 9) + fonts.regular.widthOfTextAtSize(pillTypeText, 8) + 16;
+  const pillX = MARGIN + fonts.bold.widthOfTextAtSize(`Match ${index + 1}`, 11) + 10;
+  const pillY = engine.currentY - 4;
+  drawRoundedRect(page, pillX, pillY, pillBgWidth, 16, 4, riskColors.bg);
+  page.drawText(pillText, { x: pillX + 8, y: engine.currentY, size: 9, font: fonts.bold, color: riskColors.text });
+  page.drawText(pillTypeText, { x: pillX + 8 + fonts.bold.widthOfTextAtSize(pillText, 9) + 2, y: engine.currentY + 1, size: 8, font: fonts.regular, color: colors.textMuted });
+
+  engine.currentY -= 22;
   const panelTopY = engine.currentY;
-  const panelHeight = 120;
 
-  // LEFT PANEL — background first, then text
-  page.drawRectangle({
-    x: MARGIN, y: panelTopY - panelHeight, width: halfWidth, height: panelHeight,
-    color: colors.redTint, borderColor: colors.border, borderWidth: 0.5,
-  });
+  // LEFT PANEL — "Your Document"
+  drawRoundedRect(page, MARGIN, panelTopY, halfWidth, panelHeight, 4, colors.redTint, colors.border, 0.5);
   // Blue left-border accent
   page.drawRectangle({ x: MARGIN, y: panelTopY - panelHeight, width: 3, height: panelHeight, color: colors.primary });
 
   page.drawText("Your Document", {
-    x: MARGIN + 8, y: panelTopY - 14, size: 8, font: fonts.bold, color: colors.textMuted,
+    x: MARGIN + 8, y: panelTopY - 14, size: 7, font: fonts.bold, color: colors.textMuted,
   });
 
-  const leftLines = wrapText(leftText, 38);
   let ty = panelTopY - 28;
-  leftLines.slice(0, 5).forEach((line) => {
+  leftLines.forEach((line) => {
     page.drawText(line, { x: MARGIN + 8, y: ty, size: 8, font: fonts.regular, color: colors.text });
-    ty -= 12;
+    ty -= LINE_HEIGHT;
   });
 
-  // RIGHT PANEL — background first, then text
-  const rightX = MARGIN + halfWidth + 10;
-  page.drawRectangle({
-    x: rightX, y: panelTopY - panelHeight, width: halfWidth, height: panelHeight,
-    color: colors.amberTint, borderColor: colors.border, borderWidth: 0.5,
-  });
+  // RIGHT PANEL — "Matched Source"
+  const rightX = MARGIN + halfWidth + 12;
+  drawRoundedRect(page, rightX, panelTopY, halfWidth, panelHeight, 4, colors.amberTint, colors.border, 0.5);
   // Red left-border accent
   page.drawRectangle({ x: rightX, y: panelTopY - panelHeight, width: 3, height: panelHeight, color: colors.danger });
 
   page.drawText("Matched Source", {
-    x: rightX + 8, y: panelTopY - 14, size: 8, font: fonts.bold, color: colors.textMuted,
+    x: rightX + 8, y: panelTopY - 14, size: 7, font: fonts.bold, color: colors.textMuted,
   });
 
   let urlLabel = sourceUrl;
-  if (urlLabel.length > 50) urlLabel = urlLabel.slice(0, 50) + "\u2026";
+  if (urlLabel.length > 55) urlLabel = urlLabel.slice(0, 55) + "\u2026";
   page.drawText(urlLabel, {
     x: rightX + 8, y: panelTopY - 24, size: 7, font: fonts.regular, color: colors.primary,
   });
 
-  const rightLines = wrapText(sourceText, 38);
   let ry = panelTopY - 38;
-  rightLines.slice(0, 4).forEach((line) => {
+  rightLines.forEach((line) => {
     page.drawText(line, { x: rightX + 8, y: ry, size: 8, font: fonts.regular, color: colors.text });
-    ry -= 12;
+    ry -= LINE_HEIGHT;
   });
 
-  engine.currentY = panelTopY - panelHeight - 15;
+  engine.currentY = panelTopY - panelHeight - 16;
 }
 
 // ---------------------------------------------------------------------------
@@ -740,26 +906,30 @@ export function drawRecommendations(engine: PdfLayoutEngine, recommendations: st
   const { fonts, colors } = engine;
   const page = engine.currentPage;
 
-  const blockHeight = 30 + recommendations.length * 20;
+  const blockHeight = 34 + recommendations.length * 20;
   engine.checkPageBreak(blockHeight);
 
-  // Background tint
+  // Background tint with risk-colored top border
+  drawRoundedRect(page, MARGIN, engine.currentY, CONTENT_WIDTH, blockHeight, 4, colors.bgGray, colors.border, 0.5);
   page.drawRectangle({
-    x: MARGIN, y: engine.currentY - blockHeight, width: CONTENT_WIDTH, height: blockHeight,
-    color: colors.bgGray, borderColor: colors.border, borderWidth: 0.5,
+    x: MARGIN, y: engine.currentY - 1.5, width: 40, height: 3,
+    color: colors.primary,
   });
 
   page.drawText("Actionable Recommendations", {
-    x: MARGIN + 10, y: engine.currentY - 16, size: 12, font: fonts.bold, color: colors.primary,
+    x: MARGIN + 12, y: engine.currentY - 18, size: 12, font: fonts.bold, color: colors.text,
   });
 
-  let ry = engine.currentY - 34;
+  let ry = engine.currentY - 38;
   recommendations.forEach((rec) => {
-    engine.checkPageBreak(20);
-    page.drawText(`\u2022 ${rec}`, {
-      x: MARGIN + 10, y: ry, size: 9, font: fonts.regular, color: colors.text,
+    const wrapped = wrapText(rec, 88);
+    wrapped.forEach((line, lineIdx) => {
+      page.drawText(lineIdx === 0 ? `\u2022 ${line}` : `  ${line}`, {
+        x: MARGIN + 12, y: ry, size: 8, font: fonts.regular, color: colors.text,
+      });
+      ry -= 14;
     });
-    ry -= 18;
+    ry -= 4; // spacing between bullets
   });
 
   engine.currentY = ry - 10;
@@ -779,17 +949,18 @@ export async function generatePDFReport(jobId: string): Promise<void> {
     bold: await doc.embedFont(StandardFonts.HelveticaBold),
   };
   
+  // Colors matched to dashboard OKLCh design tokens (converted to RGB)
   const colors: ColorPalette = {
-    primary: rgb(0.1, 0.4, 0.8),
-    text: rgb(0.2, 0.2, 0.2),
-    textMuted: rgb(0.4, 0.4, 0.4),
-    border: rgb(0.85, 0.85, 0.85),
-    bgGray: rgb(0.96, 0.96, 0.96),
-    success: rgb(0.1, 0.7, 0.3),
-    warning: rgb(0.9, 0.6, 0.1),
-    danger: rgb(0.9, 0.2, 0.2),
-    redTint: rgb(0.98, 0.92, 0.92),
-    amberTint: rgb(0.99, 0.96, 0.88),
+    primary: rgb(0.14, 0.14, 0.14),   // --primary: oklch(0.14 0 0) — near-black
+    text: rgb(0.18, 0.18, 0.18),       // --foreground
+    textMuted: rgb(0.46, 0.46, 0.46),  // --muted-foreground: oklch(0.5 0 0)
+    border: rgb(0.90, 0.90, 0.90),     // --border: oklch(0.93 0 0)
+    bgGray: rgb(0.96, 0.96, 0.96),     // --muted: oklch(0.97 0 0)
+    success: rgb(0.35, 0.75, 0.45),    // --risk-low: oklch(0.75 0.15 145)
+    warning: rgb(0.92, 0.65, 0.15),    // --risk-medium: oklch(0.78 0.15 80)
+    danger: rgb(0.85, 0.22, 0.22),     // --risk-high: oklch(0.6 0.2 25)
+    redTint: rgb(0.97, 0.92, 0.92),    // match dashboard bg-destructive/10
+    amberTint: rgb(0.98, 0.95, 0.88),  // match dashboard bg-amber-500/10
   };
 
   const layout: LayoutConstants = {
@@ -811,10 +982,23 @@ export async function generatePDFReport(jobId: string): Promise<void> {
     firstPage,
   });
 
-  drawHeader(engine.currentPage, engine);
-  engine.currentY -= 60;
-
   const clampedScore = Math.max(0, Math.min(100, data.originalityScore));
+  const riskColors = getPdfRiskColors(clampedScore, colors);
+  const riskAccent = riskColors.accent;
+
+  // Set PDF metadata for better document management
+  doc.setTitle(`${branding.appName} Report — Job ${jobId}`);
+  doc.setAuthor(branding.appName);
+  doc.setSubject(`Plagiarism Analysis Report — ${clampedScore}% Original`);
+  doc.setKeywords(["plagiarism", "originality", "analysis", "report"]);
+  doc.setProducer(branding.appName);
+  doc.setCreationDate(new Date());
+  doc.setModificationDate(new Date());
+
+  drawHeader(engine.currentPage, engine, riskAccent);
+  // Store accent on engine so addPage can reuse it
+  (engine as any)._riskAccent = riskAccent;
+  engine.currentY -= 60;
   
   drawExecutiveSummary(engine, {
     originalityScore: clampedScore,
@@ -848,6 +1032,11 @@ export async function generatePDFReport(jobId: string): Promise<void> {
 
   const recs = buildRecommendations(clampedScore, data.matches);
   drawRecommendations(engine, recs);
+
+  // Add "HIGH PLAGIARISM RISK" watermark for high-risk reports
+  if (clampedScore < 50) {
+    addWatermark(engine, "HIGH PLAGIARISM RISK", colors.danger);
+  }
 
   engine.finaliseFooters();
 
