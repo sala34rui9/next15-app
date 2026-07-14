@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 import { ShieldCheck, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -72,10 +73,23 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
       counts[domain] = (counts[domain] || 0) + 1;
     });
 
-    return Object.entries(counts)
+    const sorted = Object.entries(counts)
       .map(([name, count]) => ({ name, matches: count }))
       .sort((a, b) => b.matches - a.matches)
       .slice(0, 5);
+
+    const colors = [
+      "var(--risk-high)",
+      "var(--risk-medium)",
+      "var(--risk-low)",
+      "oklch(0.6 0.15 250)",
+      "oklch(0.55 0.15 320)",
+    ];
+
+    return sorted.map((item, index) => ({
+      ...item,
+      fill: colors[index % colors.length]
+    }));
   }, [matches]);
 
   const similarityData = useMemo(() => {
@@ -90,9 +104,9 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
     });
 
     return [
-      { name: "Exact Match", value: exact },
-      { name: "Slight Changes", value: slight },
-      { name: "Paraphrased", value: paraphrased },
+      { name: "Exact Match", value: exact, fill: "var(--risk-high)" },
+      { name: "Slight Changes", value: slight, fill: "var(--risk-medium)" },
+      { name: "Paraphrased", value: paraphrased, fill: "var(--risk-low)" },
     ];
   }, [matches]);
 
@@ -153,11 +167,15 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
                 <div className="h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={similarityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.2)" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                      <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
-                      <Bar dataKey="value" fill="hsl(var(--chart-4))" radius={[6, 6, 0, 0]} barSize={36} animationDuration={1500} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} />
+                      <Tooltip cursor={{ fill: 'var(--muted)' }} content={<CustomTooltip />} />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={36} animationDuration={1500}>
+                        {similarityData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -186,11 +204,15 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
                 <div className="h-[240px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={sourceData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" />
                       <XAxis type="number" hide />
-                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} width={130} />
-                      <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
-                      <Bar dataKey="matches" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} barSize={22} animationDuration={1500} />
+                      <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} width={130} />
+                      <Tooltip cursor={{ fill: 'var(--muted)' }} content={<CustomTooltip />} />
+                      <Bar dataKey="matches" radius={[0, 4, 4, 0]} barSize={22} animationDuration={1500}>
+                        {sourceData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
