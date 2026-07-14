@@ -112,7 +112,7 @@ export default function ReportDetailsPage() {
         description={`Report for Job ID: ${jobId}`}
         actions={<DownloadReportButton jobId={jobId} />}
       />
-      <Section className="pt-4 flex gap-8">
+      <Section className="pt-4 flex gap-4 xl:gap-6">
         <ReportSidebarNav originalityScore={originalityScore} jobId={jobId} />
 
         <div className="flex-1 min-w-0 space-y-10">

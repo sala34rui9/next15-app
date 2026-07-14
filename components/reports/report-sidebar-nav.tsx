@@ -52,7 +52,7 @@ export function ReportSidebarNav({ originalityScore, jobId }: ReportSidebarNavPr
   };
 
   return (
-    <aside className="hidden lg:flex flex-col w-56 shrink-0 sticky top-20 h-[calc(100vh-5rem)]">
+    <aside className="hidden lg:flex flex-col w-48 shrink-0 sticky top-20 h-[calc(100vh-5rem)]">
       <nav className="flex-1 py-4">
         {/* Nav items */}
         <ul className="space-y-1">
