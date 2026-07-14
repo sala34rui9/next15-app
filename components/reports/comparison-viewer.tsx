@@ -1,12 +1,71 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Link2, Info, ChevronRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MatchDetail } from "@/services/quetext/quetext.types";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Allowed HTML tags and attributes for sanitized rendering.
+// Only inline formatting tags permitted — no scripts, links, images, etc.
+const ALLOWED_TAGS = new Set(["mark", "b", "i", "em", "strong", "span", "br"]);
+const ALLOWED_ATTRS = new Set(["class", "style"]);
+
+/**
+ * Minimal HTML sanitizer: strips all tags/attributes not in the allowlist.
+ * Used instead of dangerouslySetInnerHTML to prevent XSS from API responses.
+ */
+function sanitizeHtml(input: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(input, "text/html");
+
+  function cleanNode(node: Element): ReactNode[] {
+    const children: ReactNode[] = [];
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        children.push(child.textContent);
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as Element;
+        const tag = el.tagName.toLowerCase();
+        if (ALLOWED_TAGS.has(tag)) {
+          const props: Record<string, string> = {};
+          for (const attr of Array.from(el.attributes)) {
+            if (ALLOWED_ATTRS.has(attr.name)) {
+              // Sanitize style attribute to prevent expression()/url() attacks
+              if (attr.name === "style") {
+                const safeStyle = attr.value
+                  .replace(/expression\s*\(/gi, "")
+                  .replace(/url\s*\(/gi, "");
+                props[attr.name] = safeStyle;
+              } else {
+                props[attr.name] = attr.value;
+              }
+            }
+          }
+          children.push(
+            <span key={children.length} {...props}>
+              {cleanNode(el)}
+            </span>
+          );
+        } else {
+          // Disallowed tag: keep its text content but discard the tag
+          children.push(cleanNode(el));
+        }
+      }
+    }
+    return children;
+  }
+
+  return cleanNode(doc.body) as unknown as string;
+}
+
+/** Renders API-provided HTML snippet after sanitizing dangerous tags/attributes. */
+function SanitizedHtml({ html }: { html: string }) {
+  const cleaned = sanitizeHtml(html);
+  return <>{cleaned}</>;
+}
 
 interface ComparisonViewerProps {
   matches: MatchDetail[];
@@ -244,10 +303,13 @@ export function ComparisonViewer({ matches, documentText }: ComparisonViewerProp
                                 </a>
                               )}
                             </div>
-                            <div 
-                              className="text-sm text-foreground/90 leading-relaxed max-h-[250px] overflow-y-auto pr-2 custom-scrollbar [&>mark]:bg-amber-200/60 dark:[&>mark]:bg-amber-900/60 [&>mark]:text-inherit [&>mark]:rounded-sm [&>mark]:px-0.5 [&>b]:bg-amber-200/60 dark:[&>b]:bg-amber-900/60 [&>b]:text-inherit [&>b]:rounded-sm [&>b]:px-0.5"
-                              dangerouslySetInnerHTML={{ __html: m.highlightedSnippet || m.matchedText || "No text available." }}
-                            />
+                            <div className="text-sm text-foreground/90 leading-relaxed max-h-[250px] overflow-y-auto pr-2 custom-scrollbar [&>mark]:bg-amber-200/60 dark:[&>mark]:bg-amber-900/60 [&>mark]:text-inherit [&>mark]:rounded-sm [&>mark]:px-0.5 [&>b]:bg-amber-200/60 dark:[&>b]:bg-amber-900/60 [&>b]:text-inherit [&>b]:rounded-sm [&>b]:px-0.5">
+                              {m.highlightedSnippet ? (
+                                <SanitizedHtml html={m.highlightedSnippet} />
+                              ) : (
+                                <span>{m.matchedText || "No text available."}</span>
+                              )}
+                            </div>
                           </div>
                         </motion.div>
                       )}

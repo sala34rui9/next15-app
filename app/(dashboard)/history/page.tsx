@@ -74,9 +74,13 @@ export default function HistoryPage() {
         const rawConfig = localStorage.getItem("pg_api_config");
         let headers: Record<string, string> = {};
         if (rawConfig) {
-          const config = JSON.parse(rawConfig);
-          if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
-          if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          try {
+            const config = JSON.parse(rawConfig);
+            if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
+            if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          } catch {
+            console.warn("Invalid API config in localStorage; ignoring");
+          }
         }
 
         const res = await fetch("/api/quetext/history", { headers });

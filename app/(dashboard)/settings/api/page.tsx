@@ -83,7 +83,7 @@ export default function ApiSettingsPage() {
           </div>
         </CardContent>
         <CardFooter className="border-t px-6 py-4 bg-muted/10 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Your keys are stored securely in your browser's local storage.</p>
+          <p className="text-xs text-muted-foreground">Keys are stored in your browser's localStorage. Anyone with access to this device can read them — do not use on shared machines.</p>
           <Button onClick={handleSave}>Save Keys</Button>
         </CardFooter>
       </Card>

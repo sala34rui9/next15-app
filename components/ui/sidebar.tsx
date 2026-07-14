@@ -66,7 +66,7 @@ function SidebarProvider({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobile() ?? false
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.
@@ -162,7 +162,9 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile: sidebarIsMobile, state, openMobile, setOpenMobile } = useSidebar()
+  // isMobile may be undefined during SSR; treat as desktop until hydrated
+  const isMobile = sidebarIsMobile ?? false
 
   if (collapsible === "none") {
     return (
@@ -509,7 +511,8 @@ function SidebarMenuButton({
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { isMobile, state } = useSidebar()
+  const { isMobile: sidebarIsMobile, state } = useSidebar()
+  const isMobile = sidebarIsMobile ?? false
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(

@@ -4,8 +4,12 @@ import { logger } from "@/utils/logger";
 import { QuetextApiError } from "@/services/quetext/quetext.types";
 
 function getClient(req: NextRequest): QuetextService {
-  const apiKey = req.headers.get("x-quetext-key") || process.env.QUETEXT_API_KEY || "";
+  const headerKey = req.headers.get("x-quetext-key")?.trim();
+  const envKey = process.env.QUETEXT_API_KEY?.trim();
+  const apiKey = headerKey || envKey || "";
+
   const baseUrl = req.headers.get("x-quetext-base-url") || process.env.QUETEXT_BASE_URL || "";
+
   return new QuetextService({ apiKey, baseUrl });
 }
 
@@ -18,6 +22,14 @@ export async function GET(req: NextRequest) {
     if (!jobId) {
       return NextResponse.json(
         { error: "Missing jobId parameter" },
+        { status: 400 }
+      );
+    }
+
+    // Validate jobId format to prevent path traversal / injection
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
+      return NextResponse.json(
+        { error: "Invalid jobId format" },
         { status: 400 }
       );
     }

@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -15,11 +18,40 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
+/**
+ * Builds a breadcrumb path from the current URL pathname.
+ * e.g. "/scanner/abc123" → [{ label: "Scanner", href: "/scanner" }, { label: "abc123" }]
+ */
+function useBreadcrumbs() {
+  const pathname = usePathname();
+  const segments = pathname.split("/").filter(Boolean);
+
+  const crumbs: { label: string; href: string }[] = [];
+  let href = "";
+
+  for (let i = 0; i < segments.length; i++) {
+    href += `/${segments[i]}`;
+    // For the last segment, check if it looks like an ID (jobId) — don't make it a link
+    const isLast = i === segments.length - 1;
+    const looksLikeId = /^[a-f0-9_-]{6,}$/i.test(segments[i]) || /^\d+$/.test(segments[i]);
+    crumbs.push({
+      label: segments[i]
+        .replace(/-/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+      href: isLast && looksLikeId ? "" : href,
+    });
+  }
+
+  return crumbs;
+}
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const breadcrumbs = useBreadcrumbs();
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -31,14 +63,30 @@ export default function DashboardLayout({
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="#">
-                    Building Your Application
+                  <BreadcrumbLink href="/">
+                    Dashboard
                   </BreadcrumbLink>
                 </BreadcrumbItem>
-                <BreadcrumbSeparator className="hidden md:block" />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Data Fetching</BreadcrumbPage>
-                </BreadcrumbItem>
+                {breadcrumbs.length > 0 && (
+                  <BreadcrumbSeparator className="hidden md:block" />
+                )}
+                {breadcrumbs.map((crumb, i) => {
+                  const isLast = i === breadcrumbs.length - 1;
+                  return (
+                    <BreadcrumbItem key={crumb.href + i}>
+                      {isLast || !crumb.href ? (
+                        <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                      ) : (
+                        <>
+                          <BreadcrumbLink href={crumb.href}>
+                            {crumb.label}
+                          </BreadcrumbLink>
+                          <BreadcrumbSeparator />
+                        </>
+                      )}
+                    </BreadcrumbItem>
+                  );
+                })}
               </BreadcrumbList>
             </Breadcrumb>
           </div>

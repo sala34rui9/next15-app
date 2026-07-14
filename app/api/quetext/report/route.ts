@@ -26,6 +26,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Validate jobId format to prevent path traversal / injection
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
+      return NextResponse.json(
+        { error: "Invalid jobId format" },
+        { status: 400 }
+      );
+    }
+
     const reportResponse = await client.fetchReport(jobId);
     logger.info(`Report route returning for ${jobId}: originality=${reportResponse.originalityScore}%, words=${reportResponse.wordCount}, matches=${reportResponse.matches?.length ?? 0}`);
     return NextResponse.json(reportResponse);

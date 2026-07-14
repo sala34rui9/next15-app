@@ -44,9 +44,13 @@ export default function ReportsPage() {
         const rawConfig = localStorage.getItem("pg_api_config");
         let headers: Record<string, string> = {};
         if (rawConfig) {
-          const config = JSON.parse(rawConfig);
-          if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
-          if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          try {
+            const config = JSON.parse(rawConfig);
+            if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
+            if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          } catch {
+            console.warn("Invalid API config in localStorage; ignoring");
+          }
         }
 
         const res = await fetch("/api/quetext/history", { headers });
@@ -105,12 +109,20 @@ export default function ReportsPage() {
 
     setExporting(true);
     try {
-      for (const jobId of selected) {
-        await generatePDFReport(jobId);
+      // Process in parallel for faster multi-report export
+      const results = await Promise.allSettled(
+        Array.from(selected).map((jobId) => generatePDFReport(jobId))
+      );
+      const failed = results.filter((r) => r.status === "rejected");
+      if (failed.length === 0) {
+        toast.success(`Exported ${selected.size} report${selected.size > 1 ? "s" : ""}`);
+      } else {
+        toast.error(
+          `${failed.length} of ${selected.size} exports failed. Check your API key and try again.`
+        );
       }
-      toast.success(`Exported ${selected.size} report${selected.size > 1 ? "s" : ""}`);
     } catch {
-      toast.error("Failed to export some reports");
+      toast.error("Failed to export reports");
     } finally {
       setExporting(false);
     }

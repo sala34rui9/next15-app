@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,11 @@ export default function ScanProgressPage() {
   const [status, setStatus] = useState<JobStatus>("pending");
   const [progress, setProgress] = useState(0);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
 
-  const checkStatus = async () => {
+  // Wrap checkStatus in useCallback so it can be a stable dependency
+  const checkStatus = useCallback(async () => {
     try {
       const apiConfig = getApiConfig();
       const headers: Record<string, string> = {};
@@ -35,7 +38,10 @@ export default function ScanProgressPage() {
       }
 
       const data = await res.json();
-      
+
+      // Guard against state updates after unmount
+      if (!isMountedRef.current) return;
+
       setStatus(data.status);
       if (data.progressPercentage !== undefined) {
         setProgress(data.progressPercentage);
@@ -46,11 +52,12 @@ export default function ScanProgressPage() {
       if (data.status === "completed") {
         toast.success("Scan completed successfully");
 
-        // Wait a brief moment to show 100% before redirecting
-        // Note: History and Reports pages fetch directly from the Quetext API,
-        // so no local storage caching is needed here.
-        setTimeout(() => {
-          router.push(`/reports/${jobId}`);
+        // Wait a brief moment to show 100% before redirecting.
+        // Store the timer ref so it can be cleared on unmount.
+        redirectTimerRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            router.push(`/reports/${jobId}`);
+          }
         }, 1500);
         return;
       }
@@ -59,27 +66,38 @@ export default function ScanProgressPage() {
         throw new Error(data.message || "Job failed during processing");
       }
 
-      // If pending or processing, schedule next poll
+      // If pending or processing, clear any existing poll and schedule next
       if (data.status === "pending" || data.status === "processing") {
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
         pollTimerRef.current = setTimeout(checkStatus, 3000);
       }
     } catch (error) {
+      if (!isMountedRef.current) return;
       setStatus("failed");
       toast.error(error instanceof Error ? error.message : "An error occurred during polling");
     }
-  };
+  }, [jobId]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     if (jobId) {
       checkStatus();
     }
-    
+
     return () => {
+      isMountedRef.current = false;
+      // Clean up ALL pending timers on unmount
       if (pollTimerRef.current) {
         clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+        redirectTimerRef.current = null;
       }
     };
-  }, [jobId]);
+  }, [jobId, checkStatus]);
 
   return (
     <Container>

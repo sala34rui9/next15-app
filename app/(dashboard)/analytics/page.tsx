@@ -27,9 +27,13 @@ export default function AnalyticsPage() {
         const rawConfig = localStorage.getItem("pg_api_config");
         let headers: Record<string, string> = {};
         if (rawConfig) {
-          const config = JSON.parse(rawConfig);
-          if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
-          if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          try {
+            const config = JSON.parse(rawConfig);
+            if (config.apiKey) headers["x-quetext-key"] = config.apiKey;
+            if (config.baseUrl) headers["x-quetext-base-url"] = config.baseUrl;
+          } catch {
+            console.warn("Invalid API config in localStorage; ignoring");
+          }
         }
 
         const res = await fetch("/api/quetext/history", { headers });
@@ -52,13 +56,20 @@ export default function AnalyticsPage() {
     if (data.length === 0) return null;
     
     const totalScans = data.length;
-    const avgScore = data.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalScans;
-    
-    const highRisk = data.filter(d => (d.score || 0) < 50).length;
-    const mediumRisk = data.filter(d => (d.score || 0) >= 50 && (d.score || 0) < 80).length;
-    const lowRisk = data.filter(d => (d.score || 0) >= 80).length;
+    // API `score` is plagiarism percentage; convert to originality for display
+    const avgOriginality = 100 - Math.round(
+      data.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalScans
+    );
 
-    return { totalScans, avgScore: Math.round(avgScore), highRisk, mediumRisk, lowRisk };
+    // Originality < 50% = High Risk, 50-80% = Medium, >= 80% = Low Risk
+    const highRisk = data.filter(d => 100 - (d.score || 0) < 50).length;
+    const mediumRisk = data.filter(d => {
+      const orig = 100 - (d.score || 0);
+      return orig >= 50 && orig < 80;
+    }).length;
+    const lowRisk = data.filter(d => 100 - (d.score || 0) >= 80).length;
+
+    return { totalScans, avgOriginality, highRisk, mediumRisk, lowRisk };
   }, [data]);
 
   const timeSeriesData = useMemo(() => {
@@ -154,7 +165,7 @@ export default function AnalyticsPage() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats?.avgScore}%</div>
+              <div className="text-2xl font-bold">{stats?.avgOriginality}%</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Across all your documents
               </p>

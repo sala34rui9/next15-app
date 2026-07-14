@@ -18,15 +18,32 @@ function getClient(req: NextRequest): QuetextService {
 export async function POST(req: NextRequest) {
   try {
     const client = getClient(req);
+    // Enforce a reasonable body size limit (Next.js default is 1MB for Server Actions,
+    // but route handlers may receive larger bodies; we cap text at 500KB).
+    const contentLength = req.headers.get("content-length");
+    if (contentLength && parseInt(contentLength, 10) > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Request body too large (max 10MB)" },
+        { status: 413 }
+      );
+    }
+
     const formData = await req.formData();
-    
+
     const text = formData.get("text") as string | null;
     const file = formData.get("file") as File | null;
-    
+
     if (!text && !file) {
       return NextResponse.json(
         { error: "Must provide either text or file" },
         { status: 400 }
+      );
+    }
+
+    if (text && text.length > 500_000) {
+      return NextResponse.json(
+        { error: "Text too large (max 500,000 characters)" },
+        { status: 413 }
       );
     }
 
