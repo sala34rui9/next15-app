@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { ShieldCheck, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AnimatedScoreGauge } from "@/components/reports/animated-score-gauge";
 import { MatchDetail } from "@/services/quetext/quetext.types";
@@ -140,15 +141,25 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
               <CardDescription>Categorization of flagged text</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={similarityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.2)" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
-                  <Bar dataKey="value" fill="hsl(var(--chart-4))" radius={[6, 6, 0, 0]} barSize={36} animationDuration={1500} />
-                </BarChart>
-              </ResponsiveContainer>
+              {matches.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                  <div className="p-3 rounded-full bg-emerald-500/10 mb-3">
+                    <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">No Similar Matches</p>
+                  <p className="text-xs text-muted-foreground mt-1">All content appears original</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={similarityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground) / 0.2)" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill="hsl(var(--chart-4))" radius={[6, 6, 0, 0]} barSize={36} animationDuration={1500} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -161,15 +172,25 @@ export function ReportCharts({ originalityScore, matches }: ReportChartsProps) {
               <CardDescription>Top platforms where matched text was found</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 min-h-[240px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sourceData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} width={130} />
-                  <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
-                  <Bar dataKey="matches" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} barSize={22} animationDuration={1500} />
-                </BarChart>
-              </ResponsiveContainer>
+              {sourceData.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                  <div className="p-3 rounded-full bg-emerald-500/10 mb-3">
+                    <Search className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">No Sources Detected</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your document has no internet matches</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={sourceData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--muted-foreground) / 0.1)" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} width={130} />
+                    <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} content={<CustomTooltip />} />
+                    <Bar dataKey="matches" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} barSize={22} animationDuration={1500} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </motion.div>

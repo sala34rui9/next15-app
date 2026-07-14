@@ -92,6 +92,35 @@ export function stripHtml(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// sanitizeTextForPdf — remove characters WinAnsi cannot encode
+// ---------------------------------------------------------------------------
+
+export function sanitizeTextForPdf(text: string): string {
+  if (!text) return "";
+  return text
+    // Replace common smart/curly quotes with ASCII equivalents
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u00A0]/g, " ")
+    // Remove surrogate pairs (0xD800-0xDFFF) and any other non-WinAnsi chars
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "")
+    .replace(/[^\u0000-\u00FF]/g, (char) => {
+      // Try common transliterations
+      const translit: Record<string, string> = {
+        "\u00E9": "e", "\u00E8": "e", "\u00EA": "e", "\u00EB": "e",
+        "\u00E1": "a", "\u00E0": "a", "\u00E2": "a", "\u00E4": "a",
+        "\u00ED": "i", "\u00EC": "i", "\u00EE": "i", "\u00EF": "i",
+        "\u00F3": "o", "\u00F2": "o", "\u00F4": "o", "\u00F6": "o",
+        "\u00FA": "u", "\u00F9": "u", "\u00FB": "u", "\u00FC": "u",
+        "\u00F1": "n", "\u00E7": "c", "\u00DF": "ss",
+      };
+      return translit[char] || "";
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Task 2.8 — truncateText (exported)
 // ---------------------------------------------------------------------------
 
@@ -373,7 +402,7 @@ function drawExecutiveSummary(
 
   // Summary subtitle
   const subtitleText = data.summary || "Detailed breakdown of matched internet sources and overall originality.";
-  page.drawText(subtitleText.slice(0, 90), {
+  page.drawText(sanitizeTextForPdf(subtitleText.slice(0, 90)), {
     x: MARGIN, y: engine.currentY, size: 9, font: fonts.regular, color: colors.textMuted,
   });
   engine.currentY -= 25;
@@ -528,7 +557,7 @@ export function drawSourceDistributionChart(engine: PdfLayoutEngine, chartData: 
     const barX = MARGIN + 130;
     const countX = barX + barWidth + 8;
 
-    let label = data.label;
+    let label = sanitizeTextForPdf(data.label);
     if (label.length > 20) label = label.slice(0, 20) + "\u2026";
 
     page.drawText(label, {
@@ -635,9 +664,9 @@ export function drawComparisonSection(
   const { MARGIN, CONTENT_WIDTH } = engine.layout;
   const { fonts, colors } = engine;
 
-  const leftText = truncateText(match.matchedText || "", 400);
-  const sourceText = truncateText(stripHtml(match.highlightedSnippet || match.matchedText || ""), 400);
-  const sourceUrl = match.sourceUrl || "Unknown Source";
+  const leftText = sanitizeTextForPdf(truncateText(match.matchedText || "", 400));
+  const sourceText = sanitizeTextForPdf(truncateText(stripHtml(match.highlightedSnippet || match.matchedText || ""), 400));
+  const sourceUrl = sanitizeTextForPdf(match.sourceUrl || "Unknown Source");
 
   const estimatedHeight = 160;
   engine.checkPageBreak(estimatedHeight);
