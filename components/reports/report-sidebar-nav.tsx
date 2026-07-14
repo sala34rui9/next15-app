@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { BarChart3, FileSearch, GitCompare, Table2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AnimatedScoreGauge } from "@/components/reports/animated-score-gauge";
 import { DownloadReportButton } from "@/components/reports/download-report-button";
 
 interface ReportSidebarNavProps {
@@ -55,11 +54,6 @@ export function ReportSidebarNav({ originalityScore, jobId }: ReportSidebarNavPr
   return (
     <aside className="hidden lg:flex flex-col w-56 shrink-0 sticky top-20 h-[calc(100vh-5rem)]">
       <nav className="flex-1 py-4">
-        {/* Mini gauge */}
-        <div className="mb-6 flex justify-center">
-          <AnimatedScoreGauge score={originalityScore} size={120} strokeWidth={10} />
-        </div>
-
         {/* Nav items */}
         <ul className="space-y-1">
           {NAV_ITEMS.map((item) => {
