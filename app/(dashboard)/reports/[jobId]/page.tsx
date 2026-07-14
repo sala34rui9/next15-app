@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Container } from "@/components/layout/container";
@@ -9,6 +10,8 @@ import { ReportSummary } from "@/components/reports/report-summary";
 import { ReportCharts } from "@/components/reports/report-charts";
 import { MatchedSourcesTable } from "@/components/reports/matched-sources-table";
 import { ComparisonViewer } from "@/components/reports/comparison-viewer";
+import { HeroScorePanel } from "@/components/reports/hero-score-panel";
+import { ReportSidebarNav } from "@/components/reports/report-sidebar-nav";
 import { DownloadReportButton } from "@/components/reports/download-report-button";
 import { RiskLevel } from "@/components/ui/risk-badge";
 import { Loader2 } from "lucide-react";
@@ -97,32 +100,85 @@ export default function ReportDetailsPage() {
   if (originalityScore < 70) overallRisk = "High";
   else if (originalityScore < 90) overallRisk = "Medium";
 
+  const sectionTransition = {
+    duration: 0.6,
+    ease: [0.16, 1, 0.3, 1] as const,
+  };
+
   return (
     <Container>
-      <PageHeader 
-        title="Analysis Report" 
+      <PageHeader
+        title="Analysis Report"
         description={`Report for Job ID: ${jobId}`}
         actions={<DownloadReportButton jobId={jobId} />}
       />
-      <Section className="pt-4 space-y-8">
-        <ReportSummary 
-          originalityScore={originalityScore}
-          wordCount={wordCount}
-          matchCount={matches.length}
-          riskLevel={overallRisk}
-        />
-        <ReportCharts 
-          originalityScore={originalityScore}
-          matches={matches}
-        />
-        
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight mb-1">Detailed Findings</h2>
-          <p className="text-muted-foreground text-sm mb-4">
-            Review the exact internet sources that matched your document and compare them side-by-side.
-          </p>
-          <ComparisonViewer matches={matches} documentText={documentText} />
-          <MatchedSourcesTable matches={matches} />
+      <Section className="pt-4 flex gap-8">
+        <ReportSidebarNav originalityScore={originalityScore} jobId={jobId} />
+
+        <div className="flex-1 min-w-0 space-y-10">
+          <div id="report-section-hero">
+            <HeroScorePanel
+              originalityScore={originalityScore}
+              wordCount={wordCount}
+              matchCount={matches.length}
+              riskLevel={overallRisk}
+              summary={report.summary}
+            />
+          </div>
+
+          <motion.section
+            id="report-section-summary"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={sectionTransition}
+          >
+            <ReportSummary
+              originalityScore={originalityScore}
+              wordCount={wordCount}
+              matchCount={matches.length}
+              riskLevel={overallRisk}
+            />
+          </motion.section>
+
+          <motion.section
+            id="report-section-charts"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ ...sectionTransition, delay: 0.1 }}
+          >
+            <ReportCharts
+              originalityScore={originalityScore}
+              matches={matches}
+            />
+          </motion.section>
+
+          <motion.section
+            id="report-section-findings"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ ...sectionTransition, delay: 0.15 }}
+          >
+            <div className="mb-6">
+              <h2 className="font-display text-2xl font-bold tracking-tight mb-1">Detailed Findings</h2>
+              <p className="text-muted-foreground text-sm">
+                Review the exact internet sources that matched your document and compare them side-by-side.
+              </p>
+            </div>
+            <ComparisonViewer matches={matches} documentText={documentText} />
+          </motion.section>
+
+          <motion.section
+            id="report-section-sources"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ ...sectionTransition, delay: 0.2 }}
+          >
+            <MatchedSourcesTable matches={matches} />
+          </motion.section>
         </div>
       </Section>
     </Container>

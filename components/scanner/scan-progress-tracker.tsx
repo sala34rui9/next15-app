@@ -45,7 +45,7 @@ export function ScanProgressTracker({ progress, status }: ScanProgressTrackerPro
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-sm border-muted/60 overflow-hidden">
       <div className="bg-muted/30 border-b px-8 py-6">
-        <h2 className="text-xl font-semibold mb-2">Analysis in Progress</h2>
+        <h2 className="font-display text-xl font-bold tracking-tight mb-2">Analysis in Progress</h2>
         <p className="text-sm text-muted-foreground">
           We are scanning your document against billions of sources. You can safely navigate away, and we'll notify you when it's done.
         </p>
@@ -54,7 +54,7 @@ export function ScanProgressTracker({ progress, status }: ScanProgressTrackerPro
       <CardContent className="p-8">
         <div className="mb-10">
           <div className="flex justify-between text-sm font-medium mb-3">
-            <span className="text-primary">{progress}% Complete</span>
+            <span className="font-mono font-bold text-primary">{progress}% Complete</span>
             <span className="text-muted-foreground">{status === "completed" ? "Done" : timeRemainingString}</span>
           </div>
           <Progress value={progress} className="h-3 bg-muted" />

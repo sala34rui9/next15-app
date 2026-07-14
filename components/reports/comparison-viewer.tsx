@@ -152,7 +152,7 @@ export function ComparisonViewer({ matches, documentText }: ComparisonViewerProp
     <Card className="w-full border-muted/60 shadow-sm mt-8 overflow-hidden">
       <CardHeader className="pb-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/10">
         <div>
-          <CardTitle className="text-lg flex items-center gap-2">
+          <CardTitle className="font-display text-base font-semibold uppercase tracking-wider flex items-center gap-2">
             <Link2 className="w-5 h-5 text-primary" />
             Comparison Viewer
           </CardTitle>

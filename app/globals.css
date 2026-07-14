@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -23,6 +24,9 @@
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
+  --color-risk-low: var(--risk-low);
+  --color-risk-medium: var(--risk-medium);
+  --color-risk-high: var(--risk-high);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -56,7 +60,9 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-fade-in-up: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  
+  --animate-gradient-shift: gradient-shift 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s ease-in-out;
+
   @keyframes accordion-down {
     from { height: 0; }
     to { height: var(--radix-accordion-content-height); }
@@ -69,49 +75,62 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
 }
 
 :root {
   /* Crisp White Backgrounds (Vercel/Linear) */
   --background: oklch(1 0 0); /* Pure White */
   --foreground: oklch(0.14 0 0); /* Near Black */
-  
+
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.14 0 0);
-  
+
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.14 0 0);
-  
+
   /* Stark Monochrome Primary */
   --primary: oklch(0.14 0 0);
   --primary-foreground: oklch(0.98 0 0);
-  
+
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.2 0 0);
-  
+
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.5 0 0);
-  
+
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.2 0 0);
-  
+
   --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
-  
+
   /* Ultra subtle borders */
   --border: oklch(0.93 0 0);
   --input: oklch(0.93 0 0);
   --ring: oklch(0.14 0 0);
-  
+
   --chart-1: oklch(0.14 0 0);
   --chart-2: oklch(0.3 0 0);
   --chart-3: oklch(0.5 0 0);
   --chart-4: oklch(0.7 0 0);
   --chart-5: oklch(0.9 0 0);
-  
+
+  /* Risk-aware chart colors */
+  --risk-low: oklch(0.75 0.15 145);
+  --risk-medium: oklch(0.78 0.15 80);
+  --risk-high: oklch(0.6 0.2 25);
+
   /* Crisp 6px Border Radius */
-  --radius: 0.375rem; 
-  
+  --radius: 0.375rem;
+
   --sidebar: oklch(0.98 0 0);
   --sidebar-foreground: oklch(0.14 0 0);
   --sidebar-primary: oklch(0.14 0 0);
@@ -126,38 +145,43 @@
   /* Pure Black Background (Notion/Vercel) */
   --background: oklch(0 0 0);
   --foreground: oklch(0.98 0 0);
-  
+
   --card: oklch(0.1 0 0); /* Subtle elevation */
   --card-foreground: oklch(0.98 0 0);
-  
+
   --popover: oklch(0.1 0 0);
   --popover-foreground: oklch(0.98 0 0);
-  
+
   --primary: oklch(0.98 0 0);
   --primary-foreground: oklch(0.14 0 0);
-  
+
   --secondary: oklch(0.15 0 0);
   --secondary-foreground: oklch(0.98 0 0);
-  
+
   --muted: oklch(0.12 0 0);
   --muted-foreground: oklch(0.65 0 0);
-  
+
   --accent: oklch(0.15 0 0);
   --accent-foreground: oklch(0.98 0 0);
-  
+
   --destructive: oklch(0.65 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
-  
+
   --border: oklch(0.18 0 0);
   --input: oklch(0.18 0 0);
   --ring: oklch(0.98 0 0);
-  
+
   --chart-1: oklch(0.98 0 0);
   --chart-2: oklch(0.8 0 0);
   --chart-3: oklch(0.6 0 0);
   --chart-4: oklch(0.4 0 0);
   --chart-5: oklch(0.2 0 0);
-  
+
+  /* Risk-aware chart colors */
+  --risk-low: oklch(0.7 0.15 145);
+  --risk-medium: oklch(0.75 0.15 80);
+  --risk-high: oklch(0.65 0.2 25);
+
   --sidebar: oklch(0.05 0 0);
   --sidebar-foreground: oklch(0.98 0 0);
   --sidebar-primary: oklch(0.98 0 0);
@@ -166,6 +190,10 @@
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(0.18 0 0);
   --sidebar-ring: oklch(0.98 0 0);
+}
+
+@utility font-display {
+  font-family: var(--font-display), var(--font-geist-sans), system-ui, sans-serif;
 }
 
 @layer base {

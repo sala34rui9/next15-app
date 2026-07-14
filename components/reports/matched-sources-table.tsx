@@ -2,24 +2,25 @@
 
 import { useState, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Search, 
-  ArrowUpDown, 
-  ChevronRight, 
+import {
+  Search,
+  ArrowUpDown,
+  ChevronRight,
   ExternalLink,
 } from "lucide-react";
 
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 import { RiskBadge, RiskLevel } from "@/components/ui/risk-badge";
@@ -142,11 +143,11 @@ export function MatchedSourcesTable({ matches }: MatchedSourcesTableProps) {
   );
 
   return (
-    <Card className="w-full border-muted/60 shadow-sm mt-8">
+    <Card className="w-full border-muted/60 shadow-sm mt-8 bg-card/80 backdrop-blur-sm">
       <CardHeader className="pb-4 border-b">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-lg">Plagiarized Sources</CardTitle>
+            <CardTitle className="font-display text-base font-semibold uppercase tracking-wider">Plagiarized Sources</CardTitle>
             <CardDescription>Detailed breakdown of matched internet sources.</CardDescription>
           </div>
           <div className="relative w-full sm:w-72">
@@ -170,26 +171,26 @@ export function MatchedSourcesTable({ matches }: MatchedSourcesTableProps) {
               <TableRow>
                 <TableHead className="w-12"></TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort("title")} className="h-8 p-0 hover:bg-transparent font-medium">
+                  <Button variant="ghost" onClick={() => handleSort("title")} className="h-8 p-0 hover:bg-transparent text-[11px] font-semibold uppercase tracking-wider">
                     Source
                     <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
                 <TableHead>
-                  <Button variant="ghost" onClick={() => handleSort("similarity")} className="h-8 p-0 hover:bg-transparent font-medium">
+                  <Button variant="ghost" onClick={() => handleSort("similarity")} className="h-8 p-0 hover:bg-transparent text-[11px] font-semibold uppercase tracking-wider">
                     Similarity
                     <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
-                <TableHead className="hidden md:table-cell">Type</TableHead>
+                <TableHead className="hidden md:table-cell text-[11px] font-semibold uppercase tracking-wider">Type</TableHead>
                 <TableHead className="hidden sm:table-cell">
-                  <Button variant="ghost" onClick={() => handleSort("words")} className="h-8 p-0 hover:bg-transparent font-medium">
+                  <Button variant="ghost" onClick={() => handleSort("words")} className="h-8 p-0 hover:bg-transparent text-[11px] font-semibold uppercase tracking-wider">
                     Words
                     <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
                 </TableHead>
                 <TableHead className="text-right">
-                  <Button variant="ghost" onClick={() => handleSort("risk")} className="h-8 p-0 hover:bg-transparent font-medium">
+                  <Button variant="ghost" onClick={() => handleSort("risk")} className="h-8 p-0 hover:bg-transparent text-[11px] font-semibold uppercase tracking-wider">
                     Risk Level
                     <ArrowUpDown className="ml-2 h-3 w-3" />
                   </Button>
@@ -225,23 +226,51 @@ export function MatchedSourcesTable({ matches }: MatchedSourcesTableProps) {
                           </motion.div>
                         </TableCell>
                         <TableCell className="font-medium max-w-[200px] truncate">
-                          <div className="flex flex-col">
-                            <span className="truncate group-hover:text-primary transition-colors">{item.title}</span>
-                            <span className="text-xs text-muted-foreground font-normal truncate flex items-center gap-1 mt-0.5">
-                              {(item.url && item.url !== "#" ? new URL(item.url).hostname.replace('www.', '') : "unknown source")}
-                              <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </span>
-                          </div>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="flex flex-col cursor-help">
+                                <span className="truncate group-hover:text-primary transition-colors flex items-center gap-2">
+                                  {item.url && item.url !== "#" && (
+                                    <img
+                                      src={`https://www.google.com/s2/favicons?domain=${new URL(item.url).hostname}&sz=16`}
+                                      alt=""
+                                      className="w-3.5 h-3.5 rounded-sm shrink-0"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                    />
+                                  )}
+                                  <span className="truncate">{item.title}</span>
+                                </span>
+                                <span className="text-xs text-muted-foreground font-normal truncate flex items-center gap-1 mt-0.5">
+                                  {(item.url && item.url !== "#" ? new URL(item.url).hostname.replace('www.', '') : "unknown source")}
+                                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-xs">
+                              <div className="space-y-1">
+                                <p className="font-semibold text-xs">{item.title}</p>
+                                <p className="font-mono text-[10px] text-muted-foreground">{item.similarity}% match</p>
+                                {item.snippet && (
+                                  <p className="text-[11px] text-muted-foreground line-clamp-2 mt-1 pt-1 border-t">
+                                    &ldquo;{item.snippet.slice(0, 120)}...&rdquo;
+                                  </p>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={cn("h-full rounded-full", item.similarity > 80 ? "bg-destructive" : item.similarity > 50 ? "bg-amber-500" : "bg-blue-500")}
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-700",
+                                  item.similarity > 80 ? "bg-[var(--risk-high)]" : item.similarity > 50 ? "bg-[var(--risk-medium)]" : "bg-[var(--risk-low)]"
+                                )}
                                 style={{ width: `${item.similarity}%` }}
                               />
                             </div>
-                            <span className="text-sm font-semibold">{item.similarity}%</span>
+                            <span className="font-mono text-sm font-bold tracking-tight">{item.similarity}%</span>
                           </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
